@@ -10,21 +10,12 @@
 <body>
   <main class="app-shell">
     <header class="top-bar">
-      <h1>MovieFlip</h1>
-      <p>Swipe your taste. Get better recommendations.</p>
-    </header>
-
-    <section class="config-panel" id="configPanel">
-      <h2>Connect TMDB</h2>
-      <p>Enter your free TMDB API key (read access token) to load movies.</p>
-      <div class="config-row">
-        <input id="apiKeyInput" type="password" placeholder="TMDB Bearer token" autocomplete="off" />
-        <button id="saveApiKeyBtn">Save Key</button>
+      <div>
+        <h1>MovieFlip</h1>
+        <p>Swipe your taste. Get better recommendations.</p>
       </div>
-      <small>
-        Get one at <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">themoviedb.org</a>. Store it with domain restrictions when possible.
-      </small>
-    </section>
+      <button id="settingsBtn" class="settings-btn" type="button" aria-label="Open settings">⚙</button>
+    </header>
 
     <section class="dashboard">
       <div class="counter-box">
@@ -34,6 +25,7 @@
       <div class="counter-box">
         <strong id="likesCounter">0</strong>
         <span>Likes</span>
+        <button id="openLikesListBtn" class="mini-btn" type="button">Open List</button>
       </div>
       <div class="counter-box">
         <strong id="watchedCounter">0</strong>
@@ -42,28 +34,33 @@
       <div class="counter-box">
         <strong id="dislikesCounter">0</strong>
         <span>Dislikes</span>
+        <button id="openDislikesListBtn" class="mini-btn" type="button">Open List</button>
       </div>
     </section>
 
-    <section class="card-stage">
-      <article class="movie-card" id="movieCard">
-        <div class="poster-wrap">
-          <img id="moviePoster" alt="Movie poster" />
-        </div>
-        <div class="card-body">
-          <h2 id="movieTitle">Load a movie</h2>
-          <p id="movieMeta"></p>
-          <p id="movieOverview"></p>
-          <div class="genre-list" id="genreList"></div>
-        </div>
-      </article>
-      <p class="empty-note" id="emptyNote" hidden>No movies left in queue. Loading more...</p>
-    </section>
+    <section class="flip-layout">
+      <section class="card-stage">
+        <article class="movie-card" id="movieCard">
+          <div class="poster-wrap">
+            <img id="moviePoster" alt="Movie poster" />
+          </div>
+          <div class="card-body">
+            <h2 id="movieTitle">Load a movie</h2>
+            <p id="movieMeta"></p>
+            <p id="movieOverview"></p>
+            <div class="genre-list" id="genreList"></div>
+          </div>
+        </article>
+        <p class="empty-note" id="emptyNote" hidden>No movies left in queue. Loading more...</p>
+      </section>
 
-    <section class="actions">
-      <button class="action-btn dislike" id="dislikeBtn">Dislike</button>
-      <button class="action-btn watched" id="watchedBtn">Watched</button>
-      <button class="action-btn like" id="likeBtn">Like</button>
+      <section class="actions">
+        <button class="action-btn back" id="backBtn">Back</button>
+        <button class="action-btn dislike" id="dislikeBtn">Dislike</button>
+        <button class="action-btn skip" id="skipBtn">Skip</button>
+        <button class="action-btn watched" id="watchedBtn">Watched</button>
+        <button class="action-btn like" id="likeBtn">Like</button>
+      </section>
     </section>
 
     <section class="recommendations" id="recommendationsSection" hidden>
@@ -75,22 +72,66 @@
     </section>
 
     <section class="watched-panel">
-      <h2>Rate Watched Movies</h2>
+      <div class="watched-head">
+        <h2>Rate Watched Movies</h2>
+        <button id="clearWatchedBtn" type="button">Clear Watched</button>
+      </div>
       <p>Ratings improve your recommendation profile.</p>
       <div id="watchedList" class="watched-list"></div>
     </section>
   </main>
 
+  <section class="settings-modal hidden" id="settingsModal" aria-hidden="true">
+    <div class="settings-backdrop" id="settingsBackdrop"></div>
+    <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="settings-head">
+        <h2 id="settingsTitle">Settings</h2>
+        <button id="closeSettingsBtn" class="settings-close" type="button" aria-label="Close settings">x</button>
+      </div>
+      <p>Enter your free TMDB API key (read access token) to load movies.</p>
+      <div class="config-row">
+        <input id="apiKeyInput" type="password" placeholder="TMDB Bearer token" autocomplete="off" />
+        <button id="saveApiKeyBtn">Save Key</button>
+      </div>
+      <small>
+        Get one at <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">themoviedb.org</a>. Store it with domain restrictions when possible.
+      </small>
+    </div>
+  </section>
+
+  <section class="settings-modal hidden" id="preferenceModal" aria-hidden="true">
+    <div class="settings-backdrop" id="preferenceBackdrop"></div>
+    <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="preferenceTitle">
+      <div class="settings-head">
+        <h2 id="preferenceTitle">Movies</h2>
+        <button id="closePreferenceBtn" class="settings-close" type="button" aria-label="Close list">x</button>
+      </div>
+      <div class="preference-head">
+        <button id="clearPreferenceBtn" type="button">Clear All</button>
+      </div>
+      <div id="preferenceList" class="preference-list"></div>
+    </div>
+  </section>
+
   <template id="watchedItemTemplate">
     <div class="watched-item">
       <span class="watched-title"></span>
-      <div class="rating-group"></div>
+      <div class="watched-actions">
+        <div class="rating-group"></div>
+        <button class="remove-watched-btn" type="button">Remove</button>
+      </div>
     </div>
   </template>
 
   <template id="recCardTemplate">
     <article class="rec-card">
       <img class="rec-poster" alt="Recommended poster" />
+      <a class="rec-link" target="_blank" rel="noreferrer" aria-label="Open on TMDB">🔗</a>
+      <div class="rec-actions">
+        <button class="rec-action like" type="button">Like</button>
+        <button class="rec-action dislike" type="button">Dislike</button>
+        <button class="rec-action watched" type="button">Watched</button>
+      </div>
       <div class="rec-body">
         <h3 class="rec-title"></h3>
         <p class="rec-meta"></p>

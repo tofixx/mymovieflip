@@ -1,0 +1,13 @@
+﻿{
+  "name": "mymovietinder",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Static movie swipe app for GitHub Pages",
+  "scripts": {
+    "start": "serve .",
+    "dev": "serve . -l 5500"
+  },
+  "devDependencies": {
+    "serve": "^14.2.4"
+  }
+}

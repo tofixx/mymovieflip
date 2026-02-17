@@ -11,16 +11,25 @@ const state = {
   queue: [],
   current: null,
   loadingQueue: false,
-  recs: []
+  recs: [],
+  lastAction: null,
+  pendingOverride: null,
+  activePreferenceType: null
 };
 
 const el = {
+  settingsBtn: document.getElementById("settingsBtn"),
+  settingsModal: document.getElementById("settingsModal"),
+  settingsBackdrop: document.getElementById("settingsBackdrop"),
+  closeSettingsBtn: document.getElementById("closeSettingsBtn"),
   apiKeyInput: document.getElementById("apiKeyInput"),
   saveApiKeyBtn: document.getElementById("saveApiKeyBtn"),
   flipCounter: document.getElementById("flipCounter"),
   likesCounter: document.getElementById("likesCounter"),
   watchedCounter: document.getElementById("watchedCounter"),
   dislikesCounter: document.getElementById("dislikesCounter"),
+  openLikesListBtn: document.getElementById("openLikesListBtn"),
+  openDislikesListBtn: document.getElementById("openDislikesListBtn"),
   movieCard: document.getElementById("movieCard"),
   moviePoster: document.getElementById("moviePoster"),
   movieTitle: document.getElementById("movieTitle"),
@@ -31,6 +40,15 @@ const el = {
   likeBtn: document.getElementById("likeBtn"),
   watchedBtn: document.getElementById("watchedBtn"),
   dislikeBtn: document.getElementById("dislikeBtn"),
+  skipBtn: document.getElementById("skipBtn"),
+  backBtn: document.getElementById("backBtn"),
+  clearWatchedBtn: document.getElementById("clearWatchedBtn"),
+  preferenceModal: document.getElementById("preferenceModal"),
+  preferenceBackdrop: document.getElementById("preferenceBackdrop"),
+  closePreferenceBtn: document.getElementById("closePreferenceBtn"),
+  preferenceTitle: document.getElementById("preferenceTitle"),
+  clearPreferenceBtn: document.getElementById("clearPreferenceBtn"),
+  preferenceList: document.getElementById("preferenceList"),
   recommendationsSection: document.getElementById("recommendationsSection"),
   recommendationsGrid: document.getElementById("recommendationsGrid"),
   refreshRecsBtn: document.getElementById("refreshRecsBtn"),
@@ -45,11 +63,13 @@ function init() {
   bindEvents();
   renderStats();
   renderWatchedList();
+  updateBackButtonState();
 
   if (state.token) {
     el.apiKeyInput.value = state.token;
     bootstrap().catch(showErrorOnCard);
   } else {
+    openSettings();
     showStatus("Set your TMDB key to start.");
   }
 }
@@ -62,6 +82,10 @@ async function bootstrap() {
 }
 
 function bindEvents() {
+  el.settingsBtn.addEventListener("click", openSettings);
+  el.closeSettingsBtn.addEventListener("click", closeSettings);
+  el.settingsBackdrop.addEventListener("click", closeSettings);
+
   el.saveApiKeyBtn.addEventListener("click", async () => {
     const token = el.apiKeyInput.value.trim();
     if (!token) {
@@ -69,15 +93,32 @@ function bindEvents() {
     }
     state.token = token;
     localStorage.setItem(API_KEY_STORAGE, token);
+    closeSettings();
     await bootstrap().catch(showErrorOnCard);
   });
 
   el.likeBtn.addEventListener("click", () => handleDecision("like"));
   el.dislikeBtn.addEventListener("click", () => handleDecision("dislike"));
   el.watchedBtn.addEventListener("click", () => handleDecision("watched"));
+  el.skipBtn.addEventListener("click", () => handleSkip());
+  el.backBtn.addEventListener("click", () => handleBack());
+  el.openLikesListBtn.addEventListener("click", () => openPreferenceModal("likes"));
+  el.openDislikesListBtn.addEventListener("click", () => openPreferenceModal("dislikes"));
+  el.clearWatchedBtn.addEventListener("click", () => clearWatchedMovies());
+  el.preferenceBackdrop.addEventListener("click", closePreferenceModal);
+  el.closePreferenceBtn.addEventListener("click", closePreferenceModal);
+  el.clearPreferenceBtn.addEventListener("click", () => clearPreferenceType());
   el.refreshRecsBtn.addEventListener("click", () => maybeRefreshRecommendations(true));
 
   window.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !el.settingsModal.classList.contains("hidden")) {
+      closeSettings();
+      return;
+    }
+    if (event.key === "Escape" && !el.preferenceModal.classList.contains("hidden")) {
+      closePreferenceModal();
+      return;
+    }
     if (!state.current) {
       return;
     }
@@ -90,7 +131,27 @@ function bindEvents() {
     if (event.key === "ArrowUp") {
       handleDecision("watched");
     }
+    if (event.key === "ArrowDown") {
+      handleSkip();
+    }
+    if (event.key === "Backspace") {
+      event.preventDefault();
+      handleBack();
+    }
   });
+}
+
+function openSettings() {
+  el.settingsModal.classList.remove("hidden");
+  el.settingsModal.setAttribute("aria-hidden", "false");
+}
+
+function closeSettings() {
+  if (!state.token) {
+    return;
+  }
+  el.settingsModal.classList.add("hidden");
+  el.settingsModal.setAttribute("aria-hidden", "true");
 }
 
 function loadProfile() {
@@ -226,8 +287,11 @@ function handleDecision(type) {
     return;
   }
 
-  state.profile.flips += 1;
-  state.profile.seenIds.push(movie.id);
+  const isOverrideDecision = Boolean(state.pendingOverride && state.pendingOverride.movie.id === movie.id);
+  if (!isOverrideDecision) {
+    state.profile.flips += 1;
+    state.profile.seenIds.push(movie.id);
+  }
 
   if (type === "like") {
     state.profile.likes.push(toMinimalMovie(movie));
@@ -247,16 +311,67 @@ function handleDecision(type) {
     flick("watched");
   }
 
+  state.pendingOverride = null;
+  state.lastAction = { movie: { ...movie }, type };
   dedupeProfileLists();
+  ensureSeenIdsContainsLists();
   saveProfile();
   renderStats();
   renderWatchedList();
+  updateBackButtonState();
   showNextMovie();
   maybeRefreshRecommendations();
 }
 
+function handleSkip() {
+  if (!state.current) {
+    return;
+  }
+
+  if (state.pendingOverride && state.pendingOverride.movie.id === state.current.id) {
+    state.pendingOverride = null;
+    saveProfile();
+    renderStats();
+    renderWatchedList();
+    updateBackButtonState();
+    maybeRefreshRecommendations(true);
+  }
+
+  flick("skip");
+  showNextMovie();
+}
+
+function handleBack() {
+  if (!state.lastAction || state.pendingOverride) {
+    return;
+  }
+
+  const { movie, type } = state.lastAction;
+  undoDecision(movie.id, type);
+  state.pendingOverride = state.lastAction;
+  state.lastAction = null;
+
+  if (state.current && state.current.id !== movie.id) {
+    state.queue.unshift(state.current);
+  }
+
+  state.current = movie;
+  renderMovie(movie);
+  saveProfile();
+  renderStats();
+  renderWatchedList();
+  updateBackButtonState();
+  maybeRefreshRecommendations(true);
+}
+
 function flick(type) {
-  const cls = type === "like" ? "flick-like" : type === "dislike" ? "flick-dislike" : "flick-watched";
+  const cls = type === "like"
+    ? "flick-like"
+    : type === "dislike"
+      ? "flick-dislike"
+      : type === "skip"
+        ? "flick-dislike"
+        : "flick-watched";
   el.movieCard.classList.add(cls);
   setTimeout(() => el.movieCard.classList.remove(cls), 160);
 }
@@ -265,13 +380,7 @@ function dedupeProfileLists() {
   state.profile.likes = dedupeById(state.profile.likes);
   state.profile.dislikes = dedupeById(state.profile.dislikes);
   state.profile.watched = dedupeById(state.profile.watched);
-
-  const all = new Set([
-    ...state.profile.likes.map((m) => m.id),
-    ...state.profile.dislikes.map((m) => m.id),
-    ...state.profile.watched.map((m) => m.id)
-  ]);
-  state.profile.seenIds = Array.from(new Set([...state.profile.seenIds, ...all]));
+  ensureSeenIdsContainsLists();
 }
 
 function renderStats() {
@@ -279,6 +388,11 @@ function renderStats() {
   el.likesCounter.textContent = String(state.profile.likes.length);
   el.watchedCounter.textContent = String(state.profile.watched.length);
   el.dislikesCounter.textContent = String(state.profile.dislikes.length);
+}
+
+function updateBackButtonState() {
+  const canGoBack = Boolean(state.lastAction) && !state.pendingOverride;
+  el.backBtn.disabled = !canGoBack;
 }
 
 function renderWatchedList() {
@@ -295,6 +409,7 @@ function renderWatchedList() {
     const node = el.watchedTemplate.content.cloneNode(true);
     const title = node.querySelector(".watched-title");
     const group = node.querySelector(".rating-group");
+    const removeBtn = node.querySelector(".remove-watched-btn");
     const selected = state.profile.ratings[movie.id] || 3;
 
     title.textContent = movie.title;
@@ -308,6 +423,9 @@ function renderWatchedList() {
       }
       btn.addEventListener("click", () => {
         state.profile.ratings[movie.id] = score;
+        if (!state.profile.seenIds.includes(movie.id)) {
+          state.profile.seenIds.push(movie.id);
+        }
         saveProfile();
         renderWatchedList();
         maybeRefreshRecommendations(true);
@@ -315,8 +433,37 @@ function renderWatchedList() {
       group.appendChild(btn);
     }
 
+    removeBtn.addEventListener("click", () => {
+      removeWatchedMovie(movie.id);
+    });
+
     el.watchedList.appendChild(node);
   });
+}
+
+function clearWatchedMovies() {
+  if (!state.profile.watched.length) {
+    return;
+  }
+  state.profile.watched = [];
+  state.profile.ratings = {};
+  ensureSeenIdsContainsLists();
+  saveProfile();
+  renderStats();
+  renderWatchedList();
+  renderPreferenceList();
+  maybeRefreshRecommendations(true);
+}
+
+function removeWatchedMovie(movieId) {
+  state.profile.watched = state.profile.watched.filter((movie) => movie.id !== movieId);
+  delete state.profile.ratings[movieId];
+  ensureSeenIdsContainsLists();
+  saveProfile();
+  renderStats();
+  renderWatchedList();
+  renderPreferenceList();
+  maybeRefreshRecommendations(true);
 }
 
 function buildGenreWeights() {
@@ -404,16 +551,147 @@ function renderRecommendations() {
   for (const movie of state.recs) {
     const node = el.recCardTemplate.content.cloneNode(true);
     const poster = node.querySelector(".rec-poster");
+    const tmdbLink = node.querySelector(".rec-link");
     const title = node.querySelector(".rec-title");
     const meta = node.querySelector(".rec-meta");
+    const likeBtn = node.querySelector(".rec-action.like");
+    const dislikeBtn = node.querySelector(".rec-action.dislike");
+    const watchedBtn = node.querySelector(".rec-action.watched");
 
     poster.src = movie.poster_path ? `${TMDB_IMG}${movie.poster_path}` : "";
     poster.alt = `${movie.title} poster`;
+    tmdbLink.href = `https://www.themoviedb.org/movie/${movie.id}`;
     title.textContent = movie.title;
     meta.textContent = `${(movie.release_date || "").slice(0, 4) || "n/a"} · ${Number(movie.vote_average || 0).toFixed(1)}`;
+    likeBtn.addEventListener("click", () => handleRecommendationAction(movie, "like"));
+    dislikeBtn.addEventListener("click", () => handleRecommendationAction(movie, "dislike"));
+    watchedBtn.addEventListener("click", () => handleRecommendationAction(movie, "watched"));
 
     el.recommendationsGrid.appendChild(node);
   }
+}
+
+function handleRecommendationAction(movie, type) {
+  if (!movie) {
+    return;
+  }
+
+  if (type === "like") {
+    state.profile.likes.push(toMinimalMovie(movie));
+  }
+  if (type === "dislike") {
+    state.profile.dislikes.push(toMinimalMovie(movie));
+  }
+  if (type === "watched") {
+    state.profile.watched.push(toMinimalMovie(movie));
+    if (!state.profile.ratings[movie.id]) {
+      state.profile.ratings[movie.id] = 3;
+    }
+  }
+
+  dedupeProfileLists();
+  if (!state.profile.seenIds.includes(movie.id)) {
+    state.profile.seenIds.push(movie.id);
+  }
+  state.recs = state.recs.filter((rec) => rec.id !== movie.id);
+  state.queue = state.queue.filter((queuedMovie) => queuedMovie.id !== movie.id);
+  saveProfile();
+  renderStats();
+  renderWatchedList();
+  renderPreferenceList();
+  updateBackButtonState();
+  renderRecommendations();
+  maybeRefreshRecommendations(true);
+}
+
+function openPreferenceModal(type) {
+  state.activePreferenceType = type === "dislikes" ? "dislikes" : "likes";
+  el.preferenceTitle.textContent = state.activePreferenceType === "likes" ? "Liked Movies" : "Disliked Movies";
+  renderPreferenceList();
+  el.preferenceModal.classList.remove("hidden");
+  el.preferenceModal.setAttribute("aria-hidden", "false");
+}
+
+function closePreferenceModal() {
+  el.preferenceModal.classList.add("hidden");
+  el.preferenceModal.setAttribute("aria-hidden", "true");
+}
+
+function getPreferenceMovies() {
+  if (state.activePreferenceType === "dislikes") {
+    return state.profile.dislikes;
+  }
+  return state.profile.likes;
+}
+
+function renderPreferenceList() {
+  if (el.preferenceModal.classList.contains("hidden")) {
+    return;
+  }
+
+  const movies = getPreferenceMovies();
+  el.preferenceList.innerHTML = "";
+
+  if (!movies.length) {
+    const p = document.createElement("p");
+    p.className = "empty-note";
+    p.textContent = "No movies in this list.";
+    el.preferenceList.appendChild(p);
+    return;
+  }
+
+  movies.forEach((movie) => {
+    const row = document.createElement("div");
+    const title = document.createElement("span");
+    const removeBtn = document.createElement("button");
+
+    row.className = "preference-item";
+    title.textContent = movie.title;
+    removeBtn.type = "button";
+    removeBtn.className = "preference-remove-btn";
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", () => removePreferenceMovie(movie.id));
+
+    row.appendChild(title);
+    row.appendChild(removeBtn);
+    el.preferenceList.appendChild(row);
+  });
+}
+
+function clearPreferenceType() {
+  if (!state.activePreferenceType) {
+    return;
+  }
+
+  if (state.activePreferenceType === "likes") {
+    state.profile.likes = [];
+  } else {
+    state.profile.dislikes = [];
+  }
+
+  ensureSeenIdsContainsLists();
+  saveProfile();
+  renderStats();
+  renderPreferenceList();
+  maybeRefreshRecommendations(true);
+}
+
+function removePreferenceMovie(movieId) {
+  if (!state.activePreferenceType) {
+    return;
+  }
+
+  if (state.activePreferenceType === "likes") {
+    state.profile.likes = state.profile.likes.filter((movie) => movie.id !== movieId);
+  } else {
+    state.profile.dislikes = state.profile.dislikes.filter((movie) => movie.id !== movieId);
+  }
+
+  ensureSeenIdsContainsLists();
+  saveProfile();
+  renderStats();
+  renderPreferenceList();
+  maybeRefreshRecommendations(true);
 }
 
 function scoreMovie(movie, genreWeights) {
@@ -424,6 +702,20 @@ function scoreMovie(movie, genreWeights) {
   score += Number(movie.vote_average || 0) * 0.18;
   score += Number(movie.popularity || 0) * 0.002;
   return score;
+}
+
+function undoDecision(movieId, type) {
+  if (type === "like") {
+    state.profile.likes = state.profile.likes.filter((movie) => movie.id !== movieId);
+  }
+  if (type === "dislike") {
+    state.profile.dislikes = state.profile.dislikes.filter((movie) => movie.id !== movieId);
+  }
+  if (type === "watched") {
+    state.profile.watched = state.profile.watched.filter((movie) => movie.id !== movieId);
+    delete state.profile.ratings[movieId];
+  }
+  ensureSeenIdsContainsLists();
 }
 
 function isExcluded(movieId) {
@@ -456,6 +748,16 @@ function dedupeById(list) {
     out.push(item);
   }
   return out;
+}
+
+function ensureSeenIdsContainsLists() {
+  const ids = new Set([
+    ...(state.profile.seenIds || []),
+    ...state.profile.likes.map((movie) => movie.id),
+    ...state.profile.dislikes.map((movie) => movie.id),
+    ...state.profile.watched.map((movie) => movie.id)
+  ]);
+  state.profile.seenIds = Array.from(ids);
 }
 
 function pickRandomPages(count, min, max) {
