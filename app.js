@@ -1,68 +1,110 @@
-﻿const TMDB_BASE = "https://api.themoviedb.org/3";
+﻿import en from "./lang/en.js";
+import de from "./lang/de.js";
+
+const TMDB_BASE = "https://api.themoviedb.org/3";
 const TMDB_IMG = "https://image.tmdb.org/t/p/w780";
 const PROFILE_KEY = "movieflip_profile_v1";
 const API_KEY_STORAGE = "movieflip_tmdb_bearer";
+const LANGUAGE_STORAGE = "movieflip_language";
+const PROVIDERS_STORAGE = "movieflip_provider_ids";
 const MIN_FLIPS_FOR_RECS = 10;
+const I18N = { en, de };
+const TMDB_LANGUAGE = { en: "en-US", de: "de-DE" };
+
+const defaultLanguage = detectBrowserLanguage();
 
 const state = {
   token: localStorage.getItem(API_KEY_STORAGE) || "",
+  language: getInitialLanguage(),
   profile: loadProfile(),
   genres: new Map(),
   queue: [],
   current: null,
   loadingQueue: false,
   recs: [],
+  availableProviders: [],
+  selectedProviderIds: loadSelectedProviderIds(),
+  certificationCache: new Map(),
   lastAction: null,
   pendingOverride: null,
-  activePreferenceType: null
+  activeLibraryView: "watched",
+  lastStatusKey: "card.statusSetKey",
+  confirmAction: null,
+  confirmMessageKey: null,
+  confirmMessageParams: null
 };
 
 const el = {
   settingsBtn: document.getElementById("settingsBtn"),
+  providersBtn: document.getElementById("providersBtn"),
   settingsModal: document.getElementById("settingsModal"),
   settingsBackdrop: document.getElementById("settingsBackdrop"),
   closeSettingsBtn: document.getElementById("closeSettingsBtn"),
+  providersModal: document.getElementById("providersModal"),
+  providersBackdrop: document.getElementById("providersBackdrop"),
+  closeProvidersBtn: document.getElementById("closeProvidersBtn"),
+  providersTitle: document.getElementById("providersTitle"),
+  providersInfo: document.getElementById("providersInfo"),
+  providersList: document.getElementById("providersList"),
+  clearProvidersBtn: document.getElementById("clearProvidersBtn"),
+  saveProvidersBtn: document.getElementById("saveProvidersBtn"),
   apiKeyInput: document.getElementById("apiKeyInput"),
   saveApiKeyBtn: document.getElementById("saveApiKeyBtn"),
+  langEnBtn: document.getElementById("langEnBtn"),
+  langDeBtn: document.getElementById("langDeBtn"),
+  appSubtitle: document.getElementById("appSubtitle"),
   flipCounter: document.getElementById("flipCounter"),
   likesCounter: document.getElementById("likesCounter"),
   watchedCounter: document.getElementById("watchedCounter"),
   dislikesCounter: document.getElementById("dislikesCounter"),
-  openLikesListBtn: document.getElementById("openLikesListBtn"),
-  openDislikesListBtn: document.getElementById("openDislikesListBtn"),
+  flipLabel: document.getElementById("flipLabel"),
+  likesLabel: document.getElementById("likesLabel"),
+  watchedLabel: document.getElementById("watchedLabel"),
+  dislikesLabel: document.getElementById("dislikesLabel"),
   movieCard: document.getElementById("movieCard"),
   moviePoster: document.getElementById("moviePoster"),
   movieTitle: document.getElementById("movieTitle"),
   movieMeta: document.getElementById("movieMeta"),
+  movieDescriptionLabel: document.getElementById("movieDescriptionLabel"),
   movieOverview: document.getElementById("movieOverview"),
+  movieKeywordsLabel: document.getElementById("movieKeywordsLabel"),
   genreList: document.getElementById("genreList"),
   emptyNote: document.getElementById("emptyNote"),
   likeBtn: document.getElementById("likeBtn"),
   watchedBtn: document.getElementById("watchedBtn"),
+  bookmarkBtn: document.getElementById("bookmarkBtn"),
   dislikeBtn: document.getElementById("dislikeBtn"),
   skipBtn: document.getElementById("skipBtn"),
   backBtn: document.getElementById("backBtn"),
-  clearWatchedBtn: document.getElementById("clearWatchedBtn"),
-  preferenceModal: document.getElementById("preferenceModal"),
-  preferenceBackdrop: document.getElementById("preferenceBackdrop"),
-  closePreferenceBtn: document.getElementById("closePreferenceBtn"),
-  preferenceTitle: document.getElementById("preferenceTitle"),
-  clearPreferenceBtn: document.getElementById("clearPreferenceBtn"),
-  preferenceList: document.getElementById("preferenceList"),
+  recsTitle: document.getElementById("recsTitle"),
+  refreshRecsBtn: document.getElementById("refreshRecsBtn"),
+  libraryTitle: document.getElementById("libraryTitle"),
+  clearLibraryBtn: document.getElementById("clearLibraryBtn"),
+  libraryHint: document.getElementById("libraryHint"),
+  libraryList: document.getElementById("libraryList"),
+  libraryTabs: document.querySelectorAll(".library-tab"),
   recommendationsSection: document.getElementById("recommendationsSection"),
   recommendationsGrid: document.getElementById("recommendationsGrid"),
-  refreshRecsBtn: document.getElementById("refreshRecsBtn"),
-  watchedList: document.getElementById("watchedList"),
-  watchedTemplate: document.getElementById("watchedItemTemplate"),
+  settingsTitle: document.getElementById("settingsTitle"),
+  settingsInfo: document.getElementById("settingsInfo"),
+  settingsHelp: document.getElementById("settingsHelp"),
+  confirmModal: document.getElementById("confirmModal"),
+  confirmBackdrop: document.getElementById("confirmBackdrop"),
+  confirmTitle: document.getElementById("confirmTitle"),
+  confirmMessage: document.getElementById("confirmMessage"),
+  confirmCancelBtn: document.getElementById("confirmCancelBtn"),
+  confirmOkBtn: document.getElementById("confirmOkBtn"),
+  libraryTemplate: document.getElementById("libraryItemTemplate"),
   recCardTemplate: document.getElementById("recCardTemplate")
 };
 
 init();
 
 function init() {
+  applyLanguageToUi();
   bindEvents();
   renderStats();
-  renderWatchedList();
+  renderLibrary();
   updateBackButtonState();
 
   if (state.token) {
@@ -70,8 +112,162 @@ function init() {
     bootstrap().catch(showErrorOnCard);
   } else {
     openSettings();
-    showStatus("Set your TMDB key to start.");
+    showStatus("card.statusSetKey");
   }
+}
+
+function detectBrowserLanguage() {
+  const candidates = [
+    ...(navigator.languages || []),
+    navigator.language || "en"
+  ]
+    .filter(Boolean)
+    .map((value) => String(value).toLowerCase());
+
+  if (candidates.some((value) => value.startsWith("de"))) {
+    return "de";
+  }
+  return "en";
+}
+
+function getInitialLanguage() {
+  const saved = localStorage.getItem(LANGUAGE_STORAGE);
+  if (saved && I18N[saved]) {
+    return saved;
+  }
+  return defaultLanguage;
+}
+
+function loadSelectedProviderIds() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PROVIDERS_STORAGE) || "[]");
+    return Array.isArray(parsed) ? parsed.filter((id) => Number.isInteger(id)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistLanguagePreference() {
+  if (state.language === defaultLanguage) {
+    localStorage.removeItem(LANGUAGE_STORAGE);
+    return;
+  }
+  localStorage.setItem(LANGUAGE_STORAGE, state.language);
+}
+
+function tmdbLanguage() {
+  return TMDB_LANGUAGE[state.language] || TMDB_LANGUAGE.en;
+}
+
+function tmdbRegion() {
+  return state.language === "de" ? "DE" : "US";
+}
+
+function saveSelectedProviderIds() {
+  if (!state.selectedProviderIds.length) {
+    localStorage.removeItem(PROVIDERS_STORAGE);
+    return;
+  }
+  localStorage.setItem(PROVIDERS_STORAGE, JSON.stringify(state.selectedProviderIds));
+}
+
+function t(path) {
+  const root = I18N[state.language] || I18N.en;
+  return path.split(".").reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : null), root) ?? path;
+}
+
+function tf(path, params = {}) {
+  let text = String(t(path));
+  Object.entries(params).forEach(([key, value]) => {
+    text = text.replaceAll(`{${key}}`, String(value));
+  });
+  return text;
+}
+
+async function switchLanguage(nextLanguage) {
+  if (!I18N[nextLanguage] || state.language === nextLanguage) {
+    return;
+  }
+
+  state.language = nextLanguage;
+  persistLanguagePreference();
+  applyLanguageToUi();
+
+  if (state.current) {
+    renderMovie(state.current);
+  } else {
+    showStatus(state.lastStatusKey || "card.statusSetKey");
+  }
+
+  renderLibrary();
+  renderRecommendations();
+
+  if (state.token) {
+    state.availableProviders = [];
+    state.certificationCache.clear();
+    state.queue = [];
+    state.recs = [];
+    await bootstrap().catch(showErrorOnCard);
+    if (!el.providersModal.classList.contains("hidden")) {
+      await loadProviders().catch(() => {});
+      renderProvidersList();
+    }
+  }
+}
+
+function applyLanguageToUi() {
+  document.documentElement.lang = state.language;
+
+  el.langEnBtn.classList.toggle("active", state.language === "en");
+  el.langDeBtn.classList.toggle("active", state.language === "de");
+
+  el.settingsBtn.setAttribute("aria-label", t("settings.openAria"));
+  el.closeSettingsBtn.setAttribute("aria-label", t("settings.closeAria"));
+  el.providersBtn.setAttribute("aria-label", t("providers.openAria"));
+  el.closeProvidersBtn.setAttribute("aria-label", t("providers.closeAria"));
+
+  el.appSubtitle.textContent = t("appSubtitle");
+  el.flipLabel.textContent = t("counters.flips");
+  el.likesLabel.textContent = t("counters.likes");
+  el.watchedLabel.textContent = t("counters.watched");
+  el.dislikesLabel.textContent = t("counters.dislikes");
+
+  el.backBtn.textContent = t("actions.back");
+  el.dislikeBtn.textContent = t("actions.dislike");
+  el.skipBtn.textContent = t("actions.skip");
+  el.watchedBtn.textContent = t("actions.watched");
+  el.bookmarkBtn.textContent = t("actions.bookmark");
+  el.likeBtn.textContent = t("actions.like");
+  el.movieDescriptionLabel.textContent = t("card.descriptionLabel");
+  el.movieKeywordsLabel.textContent = t("card.keywordsLabel");
+
+  el.recsTitle.textContent = t("recommendations.title");
+  el.refreshRecsBtn.textContent = t("recommendations.refresh");
+
+  el.libraryTitle.textContent = t("library.title");
+  el.clearLibraryBtn.textContent = t("library.clearCurrent");
+
+  el.libraryTabs.forEach((tab) => {
+    const view = tab.dataset.view;
+    tab.textContent = t(`library.tabs.${view}`);
+  });
+
+  el.settingsTitle.textContent = t("settings.title");
+  el.settingsInfo.textContent = t("settings.info");
+  el.saveApiKeyBtn.textContent = t("settings.saveKey");
+  el.apiKeyInput.placeholder = "TMDB Bearer token";
+  el.settingsHelp.innerHTML = `${t("settings.helpPrefix")} <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">themoviedb.org</a>. ${t("settings.helpSuffix")}`;
+  el.providersBtn.textContent = t("providers.button");
+  el.providersTitle.textContent = t("providers.title");
+  el.providersInfo.textContent = tf("providers.info", { region: tmdbRegion() });
+  el.clearProvidersBtn.textContent = t("providers.clear");
+  el.saveProvidersBtn.textContent = t("providers.save");
+
+  el.emptyNote.textContent = t("card.emptyQueue");
+  el.confirmTitle.textContent = t("confirm.title");
+  el.confirmCancelBtn.textContent = t("confirm.cancel");
+  el.confirmOkBtn.textContent = t("confirm.remove");
+  refreshConfirmMessage();
 }
 
 async function bootstrap() {
@@ -83,8 +279,30 @@ async function bootstrap() {
 
 function bindEvents() {
   el.settingsBtn.addEventListener("click", openSettings);
+  el.providersBtn.addEventListener("click", () => openProvidersModal().catch(showErrorOnCard));
   el.closeSettingsBtn.addEventListener("click", closeSettings);
   el.settingsBackdrop.addEventListener("click", closeSettings);
+  el.closeProvidersBtn.addEventListener("click", closeProvidersModal);
+  el.providersBackdrop.addEventListener("click", closeProvidersModal);
+  el.clearProvidersBtn.addEventListener("click", () => {
+    state.selectedProviderIds = [];
+    renderProvidersList();
+  });
+  el.saveProvidersBtn.addEventListener("click", () => {
+    saveSelectedProviderIds();
+    closeProvidersModal();
+    maybeRefreshRecommendations(true);
+  });
+  el.confirmBackdrop.addEventListener("click", closeConfirmModal);
+  el.confirmCancelBtn.addEventListener("click", closeConfirmModal);
+  el.confirmOkBtn.addEventListener("click", executeConfirmAction);
+
+  el.langEnBtn.addEventListener("click", () => {
+    switchLanguage("en").catch(showErrorOnCard);
+  });
+  el.langDeBtn.addEventListener("click", () => {
+    switchLanguage("de").catch(showErrorOnCard);
+  });
 
   el.saveApiKeyBtn.addEventListener("click", async () => {
     const token = el.apiKeyInput.value.trim();
@@ -100,14 +318,13 @@ function bindEvents() {
   el.likeBtn.addEventListener("click", () => handleDecision("like"));
   el.dislikeBtn.addEventListener("click", () => handleDecision("dislike"));
   el.watchedBtn.addEventListener("click", () => handleDecision("watched"));
+  el.bookmarkBtn.addEventListener("click", () => handleDecision("bookmark"));
   el.skipBtn.addEventListener("click", () => handleSkip());
   el.backBtn.addEventListener("click", () => handleBack());
-  el.openLikesListBtn.addEventListener("click", () => openPreferenceModal("likes"));
-  el.openDislikesListBtn.addEventListener("click", () => openPreferenceModal("dislikes"));
-  el.clearWatchedBtn.addEventListener("click", () => clearWatchedMovies());
-  el.preferenceBackdrop.addEventListener("click", closePreferenceModal);
-  el.closePreferenceBtn.addEventListener("click", closePreferenceModal);
-  el.clearPreferenceBtn.addEventListener("click", () => clearPreferenceType());
+  el.clearLibraryBtn.addEventListener("click", () => clearActiveLibrary());
+  el.libraryTabs.forEach((tab) => {
+    tab.addEventListener("click", () => setActiveLibraryView(tab.dataset.view));
+  });
   el.refreshRecsBtn.addEventListener("click", () => maybeRefreshRecommendations(true));
 
   window.addEventListener("keydown", (event) => {
@@ -115,8 +332,12 @@ function bindEvents() {
       closeSettings();
       return;
     }
-    if (event.key === "Escape" && !el.preferenceModal.classList.contains("hidden")) {
-      closePreferenceModal();
+    if (event.key === "Escape" && !el.providersModal.classList.contains("hidden")) {
+      closeProvidersModal();
+      return;
+    }
+    if (event.key === "Escape" && !el.confirmModal.classList.contains("hidden")) {
+      closeConfirmModal();
       return;
     }
     if (!state.current) {
@@ -130,6 +351,9 @@ function bindEvents() {
     }
     if (event.key === "ArrowUp") {
       handleDecision("watched");
+    }
+    if (event.key.toLowerCase() === "b") {
+      handleDecision("bookmark");
     }
     if (event.key === "ArrowDown") {
       handleSkip();
@@ -154,6 +378,97 @@ function closeSettings() {
   el.settingsModal.setAttribute("aria-hidden", "true");
 }
 
+async function openProvidersModal() {
+  if (!state.token) {
+    openSettings();
+    return;
+  }
+  await loadProviders();
+  renderProvidersList();
+  el.providersModal.classList.remove("hidden");
+  el.providersModal.setAttribute("aria-hidden", "false");
+}
+
+function closeProvidersModal() {
+  el.providersModal.classList.add("hidden");
+  el.providersModal.setAttribute("aria-hidden", "true");
+}
+
+async function loadProviders() {
+  const payload = await api("/watch/providers/movie", `language=${tmdbLanguage()}&watch_region=${tmdbRegion()}`);
+  const results = Array.isArray(payload.results) ? payload.results : [];
+  state.availableProviders = results
+    .filter((item) => item && Number.isInteger(item.provider_id))
+    .sort((a, b) => String(a.provider_name).localeCompare(String(b.provider_name)));
+}
+
+function renderProvidersList() {
+  el.providersInfo.textContent = tf("providers.info", { region: tmdbRegion() });
+  el.providersList.innerHTML = "";
+
+  if (!state.availableProviders.length) {
+    const p = document.createElement("p");
+    p.className = "empty-note";
+    p.textContent = t("providers.empty");
+    el.providersList.appendChild(p);
+    return;
+  }
+
+  const selected = new Set(state.selectedProviderIds);
+  state.availableProviders.forEach((provider) => {
+    const row = document.createElement("label");
+    row.className = "provider-item";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = selected.has(provider.provider_id);
+    input.addEventListener("change", () => {
+      if (input.checked) {
+        selected.add(provider.provider_id);
+      } else {
+        selected.delete(provider.provider_id);
+      }
+      state.selectedProviderIds = Array.from(selected);
+    });
+    const text = document.createElement("span");
+    text.textContent = provider.provider_name;
+    row.appendChild(input);
+    row.appendChild(text);
+    el.providersList.appendChild(row);
+  });
+}
+
+function openConfirmModal(messageKey, params, onConfirm) {
+  state.confirmMessageKey = messageKey;
+  state.confirmMessageParams = params || {};
+  state.confirmAction = onConfirm;
+  refreshConfirmMessage();
+  el.confirmModal.classList.remove("hidden");
+  el.confirmModal.setAttribute("aria-hidden", "false");
+}
+
+function closeConfirmModal() {
+  state.confirmAction = null;
+  state.confirmMessageKey = null;
+  state.confirmMessageParams = null;
+  el.confirmModal.classList.add("hidden");
+  el.confirmModal.setAttribute("aria-hidden", "true");
+}
+
+function refreshConfirmMessage() {
+  if (!state.confirmMessageKey) {
+    return;
+  }
+  el.confirmMessage.textContent = tf(state.confirmMessageKey, state.confirmMessageParams || {});
+}
+
+function executeConfirmAction() {
+  const action = state.confirmAction;
+  closeConfirmModal();
+  if (typeof action === "function") {
+    action();
+  }
+}
+
 function loadProfile() {
   try {
     const parsed = JSON.parse(localStorage.getItem(PROFILE_KEY) || "{}");
@@ -162,11 +477,12 @@ function loadProfile() {
       likes: parsed.likes || [],
       dislikes: parsed.dislikes || [],
       watched: parsed.watched || [],
+      bookmarks: parsed.bookmarks || [],
       ratings: parsed.ratings || {},
       seenIds: parsed.seenIds || []
     };
   } catch {
-    return { flips: 0, likes: [], dislikes: [], watched: [], ratings: {}, seenIds: [] };
+    return { flips: 0, likes: [], dislikes: [], watched: [], bookmarks: [], ratings: {}, seenIds: [] };
   }
 }
 
@@ -195,7 +511,7 @@ async function api(path, query = "") {
 }
 
 async function loadGenres() {
-  const payload = await api("/genre/movie/list", "language=en-US");
+  const payload = await api("/genre/movie/list", `language=${tmdbLanguage()}`);
   state.genres = new Map(payload.genres.map((g) => [g.id, g.name]));
 }
 
@@ -212,7 +528,7 @@ async function fillQueue() {
     const calls = pages.map((page) =>
       api(
         "/discover/movie",
-        `include_adult=false&include_video=false&language=en-US&page=${page}&sort_by=popularity.desc&vote_count.gte=80`
+        `include_adult=false&include_video=false&language=${tmdbLanguage()}&page=${page}&sort_by=popularity.desc&vote_count.gte=80`
       )
     );
 
@@ -234,13 +550,13 @@ function showNextMovie() {
   state.current = state.queue.shift() || null;
 
   if (!state.current) {
-    showStatus("Loading more movies...");
+    showStatus("card.statusLoadingMore");
     fillQueue().then(() => {
       state.current = state.queue.shift() || null;
       if (state.current) {
         renderMovie(state.current);
       } else {
-        showStatus("No unseen movies found right now.");
+        showStatus("card.statusNoUnseen");
       }
     }).catch(showErrorOnCard);
     return;
@@ -253,24 +569,67 @@ function showNextMovie() {
 }
 
 function renderMovie(movie) {
+  const na = t("meta.na");
   el.moviePoster.src = movie.poster_path ? `${TMDB_IMG}${movie.poster_path}` : "";
-  el.moviePoster.alt = movie.title || "Movie poster";
-  el.movieTitle.textContent = movie.title || "Untitled";
-  const year = movie.release_date ? movie.release_date.slice(0, 4) : "n/a";
-  el.movieMeta.textContent = `${year} · Rating ${Number(movie.vote_average || 0).toFixed(1)}`;
-  el.movieOverview.textContent = movie.overview || "No overview available.";
+  el.moviePoster.alt = movie.title || t("card.moviePosterAlt");
+  el.movieTitle.textContent = movie.title || t("card.loadMovie");
+  el.movieMeta.textContent = formatMovieMeta(movie, na);
+  el.movieOverview.textContent = movie.overview || t("card.noOverview");
 
   el.genreList.innerHTML = "";
   for (const genreId of movie.genre_ids || []) {
     const chip = document.createElement("span");
-    chip.textContent = state.genres.get(genreId) || "Unknown";
+    chip.textContent = state.genres.get(genreId) || t("card.unknownGenre");
     el.genreList.appendChild(chip);
   }
+
+  fetchMovieCertification(movie.id).then((certification) => {
+    if (state.current && state.current.id === movie.id) {
+      el.movieMeta.textContent = formatMovieMeta(movie, certification);
+    }
+  }).catch(() => {});
 }
 
-function showStatus(text) {
+function formatMovieMeta(movie, certification) {
+  const na = t("meta.na");
+  const year = movie.release_date ? movie.release_date.slice(0, 4) : na;
+  const rating = Number(movie.vote_average || 0).toFixed(1);
+  const age = certification || na;
+  return `${year} · ${t("card.ratingLabel")} ${rating} · ${t("card.ageLabel")} ${age}`;
+}
+
+async function fetchMovieCertification(movieId) {
+  if (state.certificationCache.has(movieId)) {
+    return state.certificationCache.get(movieId);
+  }
+
+  let certification = t("meta.na");
+  try {
+    const payload = await api(`/movie/${movieId}/release_dates`);
+    certification = extractCertification(payload.results || [], tmdbRegion()) || t("meta.na");
+  } catch {
+    certification = t("meta.na");
+  }
+
+  state.certificationCache.set(movieId, certification);
+  return certification;
+}
+
+function extractCertification(results, preferredRegion) {
+  const preferred = results.find((item) => item.iso_3166_1 === preferredRegion);
+  const fallback = preferred || results[0];
+  if (!fallback || !Array.isArray(fallback.release_dates)) {
+    return "";
+  }
+
+  const withCert = fallback.release_dates.find((entry) => entry.certification && entry.certification.trim());
+  return withCert ? withCert.certification.trim() : "";
+}
+
+function showStatus(statusKey) {
+  state.lastStatusKey = statusKey;
   el.moviePoster.src = "";
-  el.movieTitle.textContent = text;
+  el.movieTitle.textContent = t(statusKey);
   el.movieMeta.textContent = "";
   el.movieOverview.textContent = "";
   el.genreList.innerHTML = "";
@@ -278,7 +637,7 @@ function showStatus(text) {
 
 function showErrorOnCard(err) {
   console.error(err);
-  showStatus("Could not load movies. Verify your TMDB token.");
+  showStatus("card.statusApiError");
 }
 
 function handleDecision(type) {
@@ -308,7 +667,13 @@ function handleDecision(type) {
     if (!state.profile.ratings[movie.id]) {
       state.profile.ratings[movie.id] = 3;
     }
+    state.activeLibraryView = "watched";
     flick("watched");
+  }
+
+  if (type === "bookmark") {
+    state.profile.bookmarks.push(toMinimalMovie(movie));
+    flick("bookmark");
   }
 
   state.pendingOverride = null;
@@ -317,7 +682,7 @@ function handleDecision(type) {
   ensureSeenIdsContainsLists();
   saveProfile();
   renderStats();
-  renderWatchedList();
+  renderLibrary();
   updateBackButtonState();
   showNextMovie();
   maybeRefreshRecommendations();
@@ -332,7 +697,7 @@ function handleSkip() {
     state.pendingOverride = null;
     saveProfile();
     renderStats();
-    renderWatchedList();
+    renderLibrary();
     updateBackButtonState();
     maybeRefreshRecommendations(true);
   }
@@ -359,7 +724,7 @@ function handleBack() {
   renderMovie(movie);
   saveProfile();
   renderStats();
-  renderWatchedList();
+  renderLibrary();
   updateBackButtonState();
   maybeRefreshRecommendations(true);
 }
@@ -369,9 +734,11 @@ function flick(type) {
     ? "flick-like"
     : type === "dislike"
       ? "flick-dislike"
-      : type === "skip"
-        ? "flick-dislike"
-        : "flick-watched";
+      : type === "bookmark"
+        ? "flick-like"
+        : type === "skip"
+          ? "flick-dislike"
+          : "flick-watched";
   el.movieCard.classList.add(cls);
   setTimeout(() => el.movieCard.classList.remove(cls), 160);
 }
@@ -380,6 +747,7 @@ function dedupeProfileLists() {
   state.profile.likes = dedupeById(state.profile.likes);
   state.profile.dislikes = dedupeById(state.profile.dislikes);
   state.profile.watched = dedupeById(state.profile.watched);
+  state.profile.bookmarks = dedupeById(state.profile.bookmarks);
   ensureSeenIdsContainsLists();
 }
 
@@ -395,75 +763,236 @@ function updateBackButtonState() {
   el.backBtn.disabled = !canGoBack;
 }
 
-function renderWatchedList() {
-  el.watchedList.innerHTML = "";
-  if (!state.profile.watched.length) {
+function setActiveLibraryView(view) {
+  const allowed = new Set(["watched", "bookmarks", "likes", "dislikes"]);
+  state.activeLibraryView = allowed.has(view) ? view : "watched";
+  renderLibrary();
+}
+
+function getActiveLibraryItems() {
+  if (state.activeLibraryView === "likes") {
+    return state.profile.likes;
+  }
+  if (state.activeLibraryView === "dislikes") {
+    return state.profile.dislikes;
+  }
+  if (state.activeLibraryView === "bookmarks") {
+    return state.profile.bookmarks;
+  }
+  return state.profile.watched;
+}
+
+function renderLibrary() {
+  const hintMap = {
+    watched: t("library.hints.watched"),
+    bookmarks: t("library.hints.bookmarks"),
+    likes: t("library.hints.likes"),
+    dislikes: t("library.hints.dislikes")
+  };
+
+  el.libraryTabs.forEach((tab) => {
+    tab.classList.toggle("active", tab.dataset.view === state.activeLibraryView);
+  });
+
+  el.libraryHint.textContent = hintMap[state.activeLibraryView] || "";
+  el.libraryList.innerHTML = "";
+  const movies = getActiveLibraryItems();
+
+  if (!movies.length) {
     const p = document.createElement("p");
     p.className = "empty-note";
-    p.textContent = "Mark movies as watched to rate them here.";
-    el.watchedList.appendChild(p);
+    p.textContent = t("library.empty");
+    el.libraryList.appendChild(p);
     return;
   }
 
-  state.profile.watched.forEach((movie) => {
-    const node = el.watchedTemplate.content.cloneNode(true);
+  movies.forEach((movie) => {
+    const node = el.libraryTemplate.content.cloneNode(true);
     const title = node.querySelector(".watched-title");
-    const group = node.querySelector(".rating-group");
-    const removeBtn = node.querySelector(".remove-watched-btn");
-    const selected = state.profile.ratings[movie.id] || 3;
-
+    const actions = node.querySelector(".watched-actions");
+    const ratingGroup = node.querySelector(".rating-group");
+    const menuPanel = node.querySelector(".item-menu-panel");
     title.textContent = movie.title;
+    ratingGroup.innerHTML = "";
+    menuPanel.innerHTML = "";
 
-    for (let score = 1; score <= 5; score += 1) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.textContent = String(score);
-      if (score === selected) {
-        btn.classList.add("active");
-      }
-      btn.addEventListener("click", () => {
-        state.profile.ratings[movie.id] = score;
-        if (!state.profile.seenIds.includes(movie.id)) {
-          state.profile.seenIds.push(movie.id);
+    if (state.activeLibraryView === "watched") {
+      const selected = state.profile.ratings[movie.id] || 3;
+      for (let score = 1; score <= 5; score += 1) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = String(score);
+        if (score === selected) {
+          btn.classList.add("active");
         }
-        saveProfile();
-        renderWatchedList();
-        maybeRefreshRecommendations(true);
-      });
-      group.appendChild(btn);
+        btn.addEventListener("click", () => {
+          state.profile.ratings[movie.id] = score;
+          if (!state.profile.seenIds.includes(movie.id)) {
+            state.profile.seenIds.push(movie.id);
+          }
+          saveProfile();
+          renderLibrary();
+          maybeRefreshRecommendations(true);
+        });
+        ratingGroup.appendChild(btn);
+      }
     }
 
-    removeBtn.addEventListener("click", () => {
-      removeWatchedMovie(movie.id);
-    });
+    if (state.activeLibraryView === "bookmarks") {
+      menuPanel.appendChild(buildMenuButton(t("library.watched"), () => markBookmarkedAsWatched(movie.id)));
+    }
 
-    el.watchedList.appendChild(node);
+    if (state.activeLibraryView === "likes") {
+      menuPanel.appendChild(buildMenuButton(t("library.moveToWatched"), () => moveLikedToWatched(movie.id)));
+    }
+
+    if (state.activeLibraryView === "watched" || state.activeLibraryView === "likes" || state.activeLibraryView === "dislikes") {
+      menuPanel.appendChild(buildMenuButton(t("library.bookmark"), () => bookmarkFromLibrary(movie.id)));
+    }
+
+    menuPanel.appendChild(buildMenuButton(t("library.remove"), () => removeFromActiveLibrary(movie.id), "remove-watched-btn"));
+
+    el.libraryList.appendChild(node);
   });
 }
 
-function clearWatchedMovies() {
-  if (!state.profile.watched.length) {
+function buildMenuButton(label, onClick, className = "") {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = label;
+  if (className) {
+    btn.className = className;
+  }
+  btn.addEventListener("click", onClick);
+  return btn;
+}
+
+function clearActiveLibrary() {
+  const view = state.activeLibraryView;
+  const currentItems = getActiveLibraryItems();
+  if (!currentItems.length) {
     return;
   }
-  state.profile.watched = [];
-  state.profile.ratings = {};
+
+  openConfirmModal("confirm.clearCurrent", {}, () => doClearActiveLibrary(view));
+}
+
+function doClearActiveLibrary(view) {
+  if (view === "watched") {
+    state.profile.watched = [];
+    state.profile.ratings = {};
+  } else if (view === "bookmarks") {
+    state.profile.bookmarks = [];
+  } else if (view === "likes") {
+    state.profile.likes = [];
+  } else if (view === "dislikes") {
+    state.profile.dislikes = [];
+  }
   ensureSeenIdsContainsLists();
   saveProfile();
   renderStats();
-  renderWatchedList();
-  renderPreferenceList();
+  renderLibrary();
   maybeRefreshRecommendations(true);
 }
 
-function removeWatchedMovie(movieId) {
-  state.profile.watched = state.profile.watched.filter((movie) => movie.id !== movieId);
-  delete state.profile.ratings[movieId];
+function removeFromActiveLibrary(movieId) {
+  const view = state.activeLibraryView;
+  const list = view === "watched"
+    ? state.profile.watched
+    : view === "bookmarks"
+      ? state.profile.bookmarks
+      : view === "likes"
+        ? state.profile.likes
+        : state.profile.dislikes;
+  const movie = list.find((item) => item.id === movieId);
+  if (!movie) {
+    return;
+  }
+  openConfirmModal("confirm.single", { title: movie.title }, () => doRemoveFromLibrary(movieId, view));
+}
+
+function doRemoveFromLibrary(movieId, view) {
+  if (view === "watched") {
+    state.profile.watched = state.profile.watched.filter((movie) => movie.id !== movieId);
+    delete state.profile.ratings[movieId];
+  } else if (view === "bookmarks") {
+    state.profile.bookmarks = state.profile.bookmarks.filter((movie) => movie.id !== movieId);
+  } else if (view === "likes") {
+    state.profile.likes = state.profile.likes.filter((movie) => movie.id !== movieId);
+  } else if (view === "dislikes") {
+    state.profile.dislikes = state.profile.dislikes.filter((movie) => movie.id !== movieId);
+  }
+
   ensureSeenIdsContainsLists();
   saveProfile();
   renderStats();
-  renderWatchedList();
-  renderPreferenceList();
+  renderLibrary();
   maybeRefreshRecommendations(true);
+}
+
+function markBookmarkedAsWatched(movieId) {
+  const movie = state.profile.bookmarks.find((item) => item.id === movieId);
+  if (!movie) {
+    return;
+  }
+  state.profile.watched.push(movie);
+  state.profile.bookmarks = state.profile.bookmarks.filter((item) => item.id !== movieId);
+  if (!state.profile.ratings[movieId]) {
+    state.profile.ratings[movieId] = 3;
+  }
+  if (!state.profile.seenIds.includes(movieId)) {
+    state.profile.seenIds.push(movieId);
+  }
+  state.activeLibraryView = "watched";
+  dedupeProfileLists();
+  saveProfile();
+  renderStats();
+  renderLibrary();
+  maybeRefreshRecommendations(true);
+}
+
+function moveLikedToWatched(movieId) {
+  const movie = state.profile.likes.find((item) => item.id === movieId);
+  if (!movie) {
+    return;
+  }
+  state.profile.watched.push(movie);
+  state.profile.likes = state.profile.likes.filter((item) => item.id !== movieId);
+  if (!state.profile.ratings[movieId]) {
+    state.profile.ratings[movieId] = 3;
+  }
+  if (!state.profile.seenIds.includes(movieId)) {
+    state.profile.seenIds.push(movieId);
+  }
+  state.activeLibraryView = "watched";
+  dedupeProfileLists();
+  saveProfile();
+  renderStats();
+  renderLibrary();
+  maybeRefreshRecommendations(true);
+}
+
+function bookmarkFromLibrary(movieId) {
+  const source = state.activeLibraryView;
+  if (source === "bookmarks") {
+    return;
+  }
+
+  const list = source === "watched"
+    ? state.profile.watched
+    : source === "likes"
+      ? state.profile.likes
+      : state.profile.dislikes;
+  const movie = list.find((item) => item.id === movieId);
+  if (!movie) {
+    return;
+  }
+
+  state.profile.bookmarks.push(movie);
+  dedupeProfileLists();
+  saveProfile();
+  renderStats();
+  renderLibrary();
 }
 
 function buildGenreWeights() {
@@ -513,11 +1042,14 @@ async function fetchRecommendations() {
     .filter((id) => (genreWeights.get(id) || 0) > -0.5);
 
   const pages = pickRandomPages(2, 1, 70);
+  const providerParam = state.selectedProviderIds.length
+    ? `&watch_region=${tmdbRegion()}&with_watch_providers=${state.selectedProviderIds.join("|")}`
+    : "";
   const queries = pages.map((page) => {
     const genreParam = topGenreIds.length ? `&with_genres=${topGenreIds.join("|")}` : "";
     return api(
       "/discover/movie",
-      `include_adult=false&include_video=false&language=en-US&page=${page}&sort_by=vote_count.desc${genreParam}`
+      `include_adult=false&include_video=false&language=${tmdbLanguage()}&page=${page}&sort_by=vote_count.desc${genreParam}${providerParam}`
     );
   });
 
@@ -543,7 +1075,7 @@ function renderRecommendations() {
   if (!state.recs.length) {
     const note = document.createElement("p");
     note.className = "empty-note";
-    note.textContent = "No recommendations yet. Keep flipping.";
+    note.textContent = t("recommendations.empty");
     el.recommendationsGrid.appendChild(note);
     return;
   }
@@ -557,15 +1089,29 @@ function renderRecommendations() {
     const likeBtn = node.querySelector(".rec-action.like");
     const dislikeBtn = node.querySelector(".rec-action.dislike");
     const watchedBtn = node.querySelector(".rec-action.watched");
+    const bookmarkBtn = node.querySelector(".rec-action.bookmark");
 
     poster.src = movie.poster_path ? `${TMDB_IMG}${movie.poster_path}` : "";
-    poster.alt = `${movie.title} poster`;
+    poster.alt = `${movie.title} ${t("recCard.posterSuffix")}`;
     tmdbLink.href = `https://www.themoviedb.org/movie/${movie.id}`;
+    tmdbLink.setAttribute("aria-label", t("recCard.openTmdbAria"));
     title.textContent = movie.title;
-    meta.textContent = `${(movie.release_date || "").slice(0, 4) || "n/a"} · ${Number(movie.vote_average || 0).toFixed(1)}`;
+
+    meta.textContent = formatMovieMeta(movie, t("meta.na"));
+
+    likeBtn.textContent = t("recCard.like");
+    dislikeBtn.textContent = t("recCard.dislike");
+    watchedBtn.textContent = t("recCard.watched");
+    bookmarkBtn.textContent = t("recCard.bookmark");
+
     likeBtn.addEventListener("click", () => handleRecommendationAction(movie, "like"));
     dislikeBtn.addEventListener("click", () => handleRecommendationAction(movie, "dislike"));
     watchedBtn.addEventListener("click", () => handleRecommendationAction(movie, "watched"));
+    bookmarkBtn.addEventListener("click", () => handleRecommendationAction(movie, "bookmark"));
+
+    fetchMovieCertification(movie.id).then((certification) => {
+      meta.textContent = formatMovieMeta(movie, certification);
+    }).catch(() => {});
 
     el.recommendationsGrid.appendChild(node);
   }
@@ -587,6 +1133,10 @@ function handleRecommendationAction(movie, type) {
     if (!state.profile.ratings[movie.id]) {
       state.profile.ratings[movie.id] = 3;
     }
+    state.activeLibraryView = "watched";
+  }
+  if (type === "bookmark") {
+    state.profile.bookmarks.push(toMinimalMovie(movie));
   }
 
   dedupeProfileLists();
@@ -597,100 +1147,9 @@ function handleRecommendationAction(movie, type) {
   state.queue = state.queue.filter((queuedMovie) => queuedMovie.id !== movie.id);
   saveProfile();
   renderStats();
-  renderWatchedList();
-  renderPreferenceList();
+  renderLibrary();
   updateBackButtonState();
   renderRecommendations();
-  maybeRefreshRecommendations(true);
-}
-
-function openPreferenceModal(type) {
-  state.activePreferenceType = type === "dislikes" ? "dislikes" : "likes";
-  el.preferenceTitle.textContent = state.activePreferenceType === "likes" ? "Liked Movies" : "Disliked Movies";
-  renderPreferenceList();
-  el.preferenceModal.classList.remove("hidden");
-  el.preferenceModal.setAttribute("aria-hidden", "false");
-}
-
-function closePreferenceModal() {
-  el.preferenceModal.classList.add("hidden");
-  el.preferenceModal.setAttribute("aria-hidden", "true");
-}
-
-function getPreferenceMovies() {
-  if (state.activePreferenceType === "dislikes") {
-    return state.profile.dislikes;
-  }
-  return state.profile.likes;
-}
-
-function renderPreferenceList() {
-  if (el.preferenceModal.classList.contains("hidden")) {
-    return;
-  }
-
-  const movies = getPreferenceMovies();
-  el.preferenceList.innerHTML = "";
-
-  if (!movies.length) {
-    const p = document.createElement("p");
-    p.className = "empty-note";
-    p.textContent = "No movies in this list.";
-    el.preferenceList.appendChild(p);
-    return;
-  }
-
-  movies.forEach((movie) => {
-    const row = document.createElement("div");
-    const title = document.createElement("span");
-    const removeBtn = document.createElement("button");
-
-    row.className = "preference-item";
-    title.textContent = movie.title;
-    removeBtn.type = "button";
-    removeBtn.className = "preference-remove-btn";
-    removeBtn.textContent = "Remove";
-    removeBtn.addEventListener("click", () => removePreferenceMovie(movie.id));
-
-    row.appendChild(title);
-    row.appendChild(removeBtn);
-    el.preferenceList.appendChild(row);
-  });
-}
-
-function clearPreferenceType() {
-  if (!state.activePreferenceType) {
-    return;
-  }
-
-  if (state.activePreferenceType === "likes") {
-    state.profile.likes = [];
-  } else {
-    state.profile.dislikes = [];
-  }
-
-  ensureSeenIdsContainsLists();
-  saveProfile();
-  renderStats();
-  renderPreferenceList();
-  maybeRefreshRecommendations(true);
-}
-
-function removePreferenceMovie(movieId) {
-  if (!state.activePreferenceType) {
-    return;
-  }
-
-  if (state.activePreferenceType === "likes") {
-    state.profile.likes = state.profile.likes.filter((movie) => movie.id !== movieId);
-  } else {
-    state.profile.dislikes = state.profile.dislikes.filter((movie) => movie.id !== movieId);
-  }
-
-  ensureSeenIdsContainsLists();
-  saveProfile();
-  renderStats();
-  renderPreferenceList();
   maybeRefreshRecommendations(true);
 }
 
@@ -715,6 +1174,9 @@ function undoDecision(movieId, type) {
     state.profile.watched = state.profile.watched.filter((movie) => movie.id !== movieId);
     delete state.profile.ratings[movieId];
   }
+  if (type === "bookmark") {
+    state.profile.bookmarks = state.profile.bookmarks.filter((movie) => movie.id !== movieId);
+  }
   ensureSeenIdsContainsLists();
 }
 
@@ -722,6 +1184,7 @@ function isExcluded(movieId) {
   const p = state.profile;
   return p.seenIds.includes(movieId)
     || p.watched.some((m) => m.id === movieId)
+    || p.bookmarks.some((m) => m.id === movieId)
     || p.likes.some((m) => m.id === movieId)
     || p.dislikes.some((m) => m.id === movieId);
 }
@@ -755,6 +1218,7 @@ function ensureSeenIdsContainsLists() {
     ...(state.profile.seenIds || []),
     ...state.profile.likes.map((movie) => movie.id),
     ...state.profile.dislikes.map((movie) => movie.id),
+    ...state.profile.bookmarks.map((movie) => movie.id),
     ...state.profile.watched.map((movie) => movie.id)
   ]);
   state.profile.seenIds = Array.from(ids);
