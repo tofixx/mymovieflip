@@ -1,0 +1,292 @@
+﻿:root {
+  --bg: #f6f3ea;
+  --surface: #fffdf8;
+  --ink: #24221f;
+  --muted: #6f675d;
+  --accent: #d4523e;
+  --accent-soft: #f6d6ce;
+  --ok: #2f7a49;
+  --warn: #8b5b10;
+  --bad: #9e2f31;
+  --edge: #e2d7c7;
+  --shadow: 0 14px 28px rgba(36, 34, 31, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  background: radial-gradient(circle at 20% 10%, #fff5ea 0%, var(--bg) 45%, #efe8d8 100%);
+  color: var(--ink);
+}
+
+.app-shell {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+}
+
+.top-bar h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 3vw, 2.8rem);
+}
+
+.top-bar p {
+  margin-top: 6px;
+  color: var(--muted);
+}
+
+.config-panel,
+.movie-card,
+.recommendations,
+.watched-panel,
+.counter-box {
+  background: var(--surface);
+  border: 1px solid var(--edge);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+
+.config-panel {
+  padding: 14px;
+  margin: 16px 0;
+}
+
+.config-row {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+input,
+button {
+  font: inherit;
+}
+
+input {
+  flex: 1;
+  border-radius: 10px;
+  border: 1px solid var(--edge);
+  padding: 10px;
+}
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  background: var(--ink);
+  color: #fff;
+}
+
+.dashboard {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.counter-box {
+  padding: 10px;
+  text-align: center;
+}
+
+.counter-box strong {
+  display: block;
+  font-size: 1.4rem;
+}
+
+.counter-box span {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.card-stage {
+  margin-top: 14px;
+  min-height: 450px;
+}
+
+.movie-card {
+  overflow: hidden;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.movie-card.flick-like {
+  transform: translateX(30px) rotate(2deg);
+  opacity: 0.65;
+}
+
+.movie-card.flick-dislike {
+  transform: translateX(-30px) rotate(-2deg);
+  opacity: 0.65;
+}
+
+.movie-card.flick-watched {
+  transform: translateY(-20px) scale(0.99);
+  opacity: 0.65;
+}
+
+.poster-wrap {
+  background: #111;
+  height: min(62vh, 500px);
+}
+
+.poster-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.card-body {
+  padding: 14px;
+}
+
+.card-body h2 {
+  margin: 0 0 4px;
+}
+
+#movieMeta {
+  color: var(--muted);
+  margin: 0 0 10px;
+}
+
+#movieOverview {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.genre-list {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.genre-list span {
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  background: #fff;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.action-btn {
+  font-weight: 600;
+  padding: 12px;
+}
+
+.dislike {
+  background: var(--bad);
+}
+
+.watched {
+  background: var(--warn);
+}
+
+.like {
+  background: var(--ok);
+}
+
+.recommendations,
+.watched-panel {
+  margin-top: 16px;
+  padding: 14px;
+}
+
+.recommendations-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.recommendations-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.rec-card {
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.rec-poster {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  background: #ddd;
+}
+
+.rec-body {
+  padding: 8px;
+}
+
+.rec-title {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.rec-meta {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.watched-list {
+  display: grid;
+  gap: 8px;
+}
+
+.watched-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.rating-group {
+  display: flex;
+  gap: 4px;
+}
+
+.rating-group button {
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: #eee7d9;
+  color: #3f3932;
+}
+
+.rating-group button.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.empty-note {
+  color: var(--muted);
+}
+
+@media (max-width: 700px) {
+  .dashboard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .poster-wrap {
+    height: 54vh;
+  }
+}
