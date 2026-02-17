@@ -38,7 +38,11 @@ export default {
     remove: "Entfernen",
     watched: "Gesehen",
     bookmark: "Merken",
-    moveToWatched: "Zu Gesehen verschieben"
+    moveToWatched: "Zu Gesehen verschieben",
+    providerLoading: "Provider werden geprüft...",
+    providerUnavailable: "Kein Anbieter verfügbar",
+    providerOpen: "Öffnen bei {provider}",
+    providerFallback: "Kein gewählter Provider, verfügbar: {list}"
   },
   settings: {
     openAria: "Einstellungen öffnen",

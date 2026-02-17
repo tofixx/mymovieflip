@@ -23,8 +23,10 @@ const state = {
   loadingQueue: false,
   recs: [],
   availableProviders: [],
+  providersDisplayOrder: [],
   selectedProviderIds: loadSelectedProviderIds(),
   certificationCache: new Map(),
+  providerAvailabilityCache: new Map(),
   lastAction: null,
   pendingOverride: null,
   activeLibraryView: "watched",
@@ -46,6 +48,8 @@ const el = {
   providersTitle: document.getElementById("providersTitle"),
   providersInfo: document.getElementById("providersInfo"),
   providersList: document.getElementById("providersList"),
+  providersBtnLabel: document.getElementById("providersBtnLabel"),
+  providersCountBadge: document.getElementById("providersCountBadge"),
   clearProvidersBtn: document.getElementById("clearProvidersBtn"),
   saveProvidersBtn: document.getElementById("saveProvidersBtn"),
   apiKeyInput: document.getElementById("apiKeyInput"),
@@ -106,6 +110,7 @@ function init() {
   renderStats();
   renderLibrary();
   updateBackButtonState();
+  updateProvidersBadge();
 
   if (state.token) {
     el.apiKeyInput.value = state.token;
@@ -205,6 +210,7 @@ async function switchLanguage(nextLanguage) {
   if (state.token) {
     state.availableProviders = [];
     state.certificationCache.clear();
+    state.providerAvailabilityCache.clear();
     state.queue = [];
     state.recs = [];
     await bootstrap().catch(showErrorOnCard);
@@ -257,7 +263,7 @@ function applyLanguageToUi() {
   el.saveApiKeyBtn.textContent = t("settings.saveKey");
   el.apiKeyInput.placeholder = "TMDB Bearer token";
   el.settingsHelp.innerHTML = `${t("settings.helpPrefix")} <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">themoviedb.org</a>. ${t("settings.helpSuffix")}`;
-  el.providersBtn.textContent = t("providers.button");
+  el.providersBtnLabel.textContent = t("providers.button");
   el.providersTitle.textContent = t("providers.title");
   el.providersInfo.textContent = tf("providers.info", { region: tmdbRegion() });
   el.clearProvidersBtn.textContent = t("providers.clear");
@@ -268,6 +274,7 @@ function applyLanguageToUi() {
   el.confirmCancelBtn.textContent = t("confirm.cancel");
   el.confirmOkBtn.textContent = t("confirm.remove");
   refreshConfirmMessage();
+  updateProvidersBadge();
 }
 
 async function bootstrap() {
@@ -286,10 +293,12 @@ function bindEvents() {
   el.providersBackdrop.addEventListener("click", closeProvidersModal);
   el.clearProvidersBtn.addEventListener("click", () => {
     state.selectedProviderIds = [];
+    updateProvidersBadge();
     renderProvidersList();
   });
   el.saveProvidersBtn.addEventListener("click", () => {
     saveSelectedProviderIds();
+    updateProvidersBadge();
     closeProvidersModal();
     maybeRefreshRecommendations(true);
   });
@@ -384,6 +393,7 @@ async function openProvidersModal() {
     return;
   }
   await loadProviders();
+  prepareProvidersDisplayOrder();
   renderProvidersList();
   el.providersModal.classList.remove("hidden");
   el.providersModal.setAttribute("aria-hidden", "false");
@@ -415,26 +425,47 @@ function renderProvidersList() {
   }
 
   const selected = new Set(state.selectedProviderIds);
-  state.availableProviders.forEach((provider) => {
-    const row = document.createElement("label");
-    row.className = "provider-item";
-    const input = document.createElement("input");
-    input.type = "checkbox";
-    input.checked = selected.has(provider.provider_id);
-    input.addEventListener("change", () => {
-      if (input.checked) {
-        selected.add(provider.provider_id);
-      } else {
+  const orderedProviders = state.providersDisplayOrder.length
+    ? state.providersDisplayOrder
+    : state.availableProviders;
+
+  orderedProviders.forEach((provider) => {
+    const badge = document.createElement("button");
+    const isSelected = selected.has(provider.provider_id);
+    badge.type = "button";
+    badge.className = `provider-badge${isSelected ? " selected" : ""}`;
+    badge.textContent = provider.provider_name;
+    badge.setAttribute("aria-pressed", isSelected ? "true" : "false");
+    badge.addEventListener("click", () => {
+      if (selected.has(provider.provider_id)) {
         selected.delete(provider.provider_id);
+      } else {
+        selected.add(provider.provider_id);
       }
       state.selectedProviderIds = Array.from(selected);
+      updateProvidersBadge();
+      renderProvidersList();
     });
-    const text = document.createElement("span");
-    text.textContent = provider.provider_name;
-    row.appendChild(input);
-    row.appendChild(text);
-    el.providersList.appendChild(row);
+    el.providersList.appendChild(badge);
   });
+}
+
+function prepareProvidersDisplayOrder() {
+  const selected = new Set(state.selectedProviderIds);
+  state.providersDisplayOrder = [...state.availableProviders].sort((a, b) => {
+    const aSelected = selected.has(a.provider_id) ? 0 : 1;
+    const bSelected = selected.has(b.provider_id) ? 0 : 1;
+    if (aSelected !== bSelected) {
+      return aSelected - bSelected;
+    }
+    return String(a.provider_name).localeCompare(String(b.provider_name), state.language);
+  });
+}
+
+function updateProvidersBadge() {
+  const count = state.selectedProviderIds.length;
+  el.providersCountBadge.textContent = String(count);
+  el.providersCountBadge.hidden = count === 0;
 }
 
 function openConfirmModal(messageKey, params, onConfirm) {
@@ -624,6 +655,59 @@ function extractCertification(results, preferredRegion) {
 
   const withCert = fallback.release_dates.find((entry) => entry.certification && entry.certification.trim());
   return withCert ? withCert.certification.trim() : "";
+}
+
+async function fetchProviderAvailability(movieId) {
+  const cacheKey = `${movieId}:${tmdbRegion()}:${state.selectedProviderIds.slice().sort((a, b) => a - b).join(",")}`;
+  if (state.providerAvailabilityCache.has(cacheKey)) {
+    return state.providerAvailabilityCache.get(cacheKey);
+  }
+
+  let availability = null;
+  try {
+    const payload = await api(`/movie/${movieId}/watch/providers`);
+    const regional = payload?.results?.[tmdbRegion()];
+    if (!regional) {
+      availability = {
+        link: "",
+        matchedProviders: [],
+        fallbackProviders: []
+      };
+    } else {
+      const buckets = [
+        ...(regional.flatrate || []),
+        ...(regional.free || []),
+        ...(regional.ads || []),
+        ...(regional.rent || []),
+        ...(regional.buy || [])
+      ];
+      const unique = new Map();
+      buckets.forEach((provider) => {
+        if (provider && Number.isInteger(provider.provider_id)) {
+          unique.set(provider.provider_id, provider.provider_name || String(provider.provider_id));
+        }
+      });
+      const namesById = unique;
+      const matchedProviders = state.selectedProviderIds
+        .filter((id) => namesById.has(id))
+        .map((id) => namesById.get(id));
+      const fallbackProviders = Array.from(namesById.values()).sort((a, b) => String(a).localeCompare(String(b), state.language));
+      availability = {
+        link: regional.link || "",
+        matchedProviders,
+        fallbackProviders
+      };
+    }
+  } catch {
+    availability = {
+      link: "",
+      matchedProviders: [],
+      fallbackProviders: []
+    };
+  }
+
+  state.providerAvailabilityCache.set(cacheKey, availability);
+  return availability;
 }
 
 function showStatus(statusKey) {
@@ -840,6 +924,42 @@ function renderLibrary() {
 
     if (state.activeLibraryView === "bookmarks") {
       menuPanel.appendChild(buildMenuButton(t("library.watched"), () => markBookmarkedAsWatched(movie.id)));
+      if (state.selectedProviderIds.length > 0) {
+        const providerLink = document.createElement("a");
+        providerLink.className = "menu-link-btn";
+        providerLink.target = "_blank";
+        providerLink.rel = "noreferrer";
+        providerLink.href = "#";
+        providerLink.textContent = t("library.providerLoading");
+        providerLink.style.pointerEvents = "none";
+        providerLink.style.opacity = "0.7";
+        menuPanel.appendChild(providerLink);
+
+        fetchProviderAvailability(movie.id).then((availability) => {
+          if (!availability) {
+            providerLink.textContent = t("library.providerUnavailable");
+            return;
+          }
+
+          if (availability.matchedProviders.length > 0 && availability.link) {
+            providerLink.href = availability.link;
+            providerLink.textContent = tf("library.providerOpen", { provider: availability.matchedProviders[0] });
+            providerLink.style.pointerEvents = "auto";
+            providerLink.style.opacity = "1";
+            return;
+          }
+
+          const fallback = availability.fallbackProviders.slice(0, 4).join(", ");
+          providerLink.textContent = tf("library.providerFallback", { list: fallback || t("library.providerUnavailable") });
+          if (availability.link) {
+            providerLink.href = availability.link;
+            providerLink.style.pointerEvents = "auto";
+            providerLink.style.opacity = "1";
+          }
+        }).catch(() => {
+          providerLink.textContent = t("library.providerUnavailable");
+        });
+      }
     }
 
     if (state.activeLibraryView === "likes") {

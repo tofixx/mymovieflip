@@ -1,6 +1,6 @@
 ﻿# MovieFlip (GitHub Pages)
 
-A static movie swipe app you can deploy on GitHub Pages.
+A static movie swipe app you can deploy on GitHub Pages. Ready to test at https://tofixx.github.io/mymovieflip/
 
 ## Features
 
@@ -27,19 +27,6 @@ python -m http.server 5500
 ```
 
 Then open `http://localhost:5500`.
-
-## Deploy to GitHub Pages
-
-1. Push this repo to GitHub.
-2. In GitHub: `Settings` -> `Pages`.
-3. Under `Build and deployment`, choose:
-   - `Source`: Deploy from a branch
-   - `Branch`: `main` (or your default), `/ (root)`
-4. Save and wait for deployment.
-
-Your site will be available at:
-
-`https://<your-username>.github.io/<your-repo>/`
 
 ## Notes
 

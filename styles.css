@@ -90,12 +90,30 @@ button {
 }
 
 .settings-btn {
+  position: relative;
   width: 44px;
   height: 44px;
   border-radius: 999px;
   padding: 0;
   font-size: 1.3rem;
   line-height: 1;
+}
+
+.icon-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  padding: 0 4px;
+  display: grid;
+  place-items: center;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #b3261e;
+  color: #fff;
+  border: 1px solid #fff;
 }
 
 .lang-btn {
@@ -522,6 +540,16 @@ button {
   text-align: left;
 }
 
+.menu-link-btn {
+  display: block;
+  text-decoration: none;
+  background: #ddd4c5;
+  color: #2e2a23;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.86rem;
+}
+
 .rating-group {
   display: flex;
   gap: 4px;
@@ -604,21 +632,25 @@ button {
   border: 1px solid var(--edge);
   border-radius: 10px;
   padding: 8px;
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
-.provider-item {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 6px;
-  border-radius: 8px;
+.provider-badge {
+  background: #e8dfcf;
+  color: #2e2a23;
+  border: 1px solid #c9bea9;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.88rem;
+  line-height: 1.2;
 }
 
-.provider-item input {
-  width: auto;
-  flex: 0 0 auto;
+.provider-badge.selected {
+  background: #2e2a23;
+  color: #fff;
+  border-color: #2e2a23;
 }
 
 @media (max-width: 700px) {
