@@ -26,6 +26,7 @@ const state = {
   providersDisplayOrder: [],
   selectedProviderIds: loadSelectedProviderIds(),
   certificationCache: new Map(),
+  trailerCache: new Map(),
   providerAvailabilityCache: new Map(),
   lastAction: null,
   pendingOverride: null,
@@ -657,6 +658,65 @@ function extractCertification(results, preferredRegion) {
   return withCert ? withCert.certification.trim() : "";
 }
 
+async function fetchMovieTrailerUrl(movieId) {
+  if (state.trailerCache.has(movieId)) {
+    return state.trailerCache.get(movieId);
+  }
+
+  let trailerUrl = "";
+  try {
+    const payload = await api(`/movie/${movieId}/videos`, `language=${tmdbLanguage()}`);
+    trailerUrl = selectTrailerUrl(payload?.results || []);
+  } catch {
+    trailerUrl = "";
+  }
+
+  state.trailerCache.set(movieId, trailerUrl);
+  return trailerUrl;
+}
+
+function selectTrailerUrl(results) {
+  if (!Array.isArray(results) || !results.length) {
+    return "";
+  }
+
+  const languageCode = state.language === "de" ? "de" : "en";
+  const regionCode = tmdbRegion();
+
+  const scoreVideo = (video) => {
+    let score = 0;
+    if (video.type === "Trailer") {
+      score += 4;
+    }
+    if (video.official) {
+      score += 2;
+    }
+    if (video.iso_639_1 === languageCode) {
+      score += 1;
+    }
+    if (video.iso_3166_1 === regionCode) {
+      score += 1;
+    }
+    return score;
+  };
+
+  const youtube = results
+    .filter((video) => video?.site === "YouTube" && video?.key)
+    .sort((a, b) => scoreVideo(b) - scoreVideo(a));
+  if (youtube[0]?.key) {
+    return `https://www.youtube.com/watch?v=${encodeURIComponent(youtube[0].key)}`;
+  }
+
+  const vimeo = results
+    .filter((video) => video?.site === "Vimeo" && video?.key)
+    .sort((a, b) => scoreVideo(b) - scoreVideo(a));
+  if (vimeo[0]?.key) {
+    return `https://vimeo.com/${encodeURIComponent(vimeo[0].key)}`;
+  }
+
+  return "";
+}
+
 async function fetchProviderAvailability(movieId) {
   const cacheKey = `${movieId}:${tmdbRegion()}:${state.selectedProviderIds.slice().sort((a, b) => a - b).join(",")}`;
   if (state.providerAvailabilityCache.has(cacheKey)) {
@@ -1203,7 +1263,8 @@ function renderRecommendations() {
   for (const movie of state.recs) {
     const node = el.recCardTemplate.content.cloneNode(true);
     const poster = node.querySelector(".rec-poster");
-    const tmdbLink = node.querySelector(".rec-link");
+    const trailerLink = node.querySelector(".rec-link.trailer");
+    const tmdbLink = node.querySelector(".rec-link.tmdb");
     const title = node.querySelector(".rec-title");
     const meta = node.querySelector(".rec-meta");
     const likeBtn = node.querySelector(".rec-action.like");
@@ -1213,6 +1274,9 @@ function renderRecommendations() {
 
     poster.src = movie.poster_path ? `${TMDB_IMG}${movie.poster_path}` : "";
     poster.alt = `${movie.title} ${t("recCard.posterSuffix")}`;
+    trailerLink.href = "#";
+    trailerLink.hidden = true;
+    trailerLink.setAttribute("aria-label", t("recCard.openTrailerAria"));
     tmdbLink.href = `https://www.themoviedb.org/movie/${movie.id}`;
     tmdbLink.setAttribute("aria-label", t("recCard.openTmdbAria"));
     title.textContent = movie.title;
@@ -1231,6 +1295,13 @@ function renderRecommendations() {
 
     fetchMovieCertification(movie.id).then((certification) => {
       meta.textContent = formatMovieMeta(movie, certification);
+    }).catch(() => {});
+    fetchMovieTrailerUrl(movie.id).then((url) => {
+      if (!url) {
+        return;
+      }
+      trailerLink.href = url;
+      trailerLink.hidden = false;
     }).catch(() => {});
 
     el.recommendationsGrid.appendChild(node);

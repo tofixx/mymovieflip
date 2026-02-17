@@ -374,11 +374,19 @@ button {
   pointer-events: auto;
 }
 
-.rec-link {
+.rec-links {
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%) scale(0.9);
+  transform: translate(-50%, -50%);
+  display: flex;
+  gap: 10px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.rec-link {
   width: 44px;
   height: 44px;
   border-radius: 999px;
@@ -388,16 +396,19 @@ button {
   font-size: 1.1rem;
   background: rgba(20, 20, 20, 0.75);
   color: #fff;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform: scale(0.9);
+  transition: transform 0.2s ease;
+}
+
+.rec-card:hover .rec-links,
+.rec-card:focus-within .rec-links {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .rec-card:hover .rec-link,
 .rec-card:focus-within .rec-link {
-  opacity: 1;
-  transform: translate(-50%, -50%) scale(1);
-  pointer-events: auto;
+  transform: scale(1);
 }
 
 .rec-action {
@@ -446,10 +457,13 @@ button {
     pointer-events: auto;
   }
 
-  .rec-link {
+  .rec-links {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
     pointer-events: auto;
+  }
+
+  .rec-link {
+    transform: scale(1);
   }
 }
 

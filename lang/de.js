@@ -86,6 +86,7 @@ export default {
     keywordsLabel: "Schlagwörter"
   },
   recCard: {
+    openTrailerAria: "Trailer ansehen",
     openTmdbAria: "Auf TMDB öffnen",
     posterSuffix: "Poster",
     like: "Like",
