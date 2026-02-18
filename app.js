@@ -12,6 +12,17 @@ const AUDIENCE_FILTER_STORAGE = "movieflip_audience_filter";
 const MIN_FLIPS_FOR_RECS = 10;
 const I18N = { en, de };
 const TMDB_LANGUAGE = { en: "en-US", de: "de-DE" };
+const INTENT_CATEGORIES = ["romance", "fun", "action", "mystery", "drama", "sci_fi", "family", "horror"];
+const INTENT_CATEGORY_KEYWORDS = {
+  romance: ["romance", "love", "relationship", "heart", "date"],
+  fun: ["comedy", "fun", "light", "feel good", "uplifting"],
+  action: ["action", "adventure", "chase", "mission", "explosive"],
+  mystery: ["mystery", "thriller", "crime", "detective", "suspense"],
+  drama: ["drama", "emotional", "character", "biography", "life"],
+  sci_fi: ["science fiction", "sci-fi", "space", "future", "technology"],
+  family: ["family", "animation", "kids", "friendship", "heartwarming"],
+  horror: ["horror", "dark", "supernatural", "slasher", "scary"]
+};
 
 const defaultLanguage = detectBrowserLanguage();
 
@@ -36,10 +47,14 @@ const state = {
   lastAction: null,
   pendingOverride: null,
   activeLibraryView: "watched",
+  searchResults: [],
+  searchQuery: "",
+  searchDebounceId: null,
   lastStatusKey: "card.statusSetKey",
   confirmAction: null,
   confirmMessageKey: null,
-  confirmMessageParams: null
+  confirmMessageParams: null,
+  intentDraftCategories: new Set()
 };
 
 const el = {
@@ -48,6 +63,15 @@ const el = {
   settingsModal: document.getElementById("settingsModal"),
   settingsBackdrop: document.getElementById("settingsBackdrop"),
   closeSettingsBtn: document.getElementById("closeSettingsBtn"),
+  intentModal: document.getElementById("intentModal"),
+  intentBackdrop: document.getElementById("intentBackdrop"),
+  intentTitle: document.getElementById("intentTitle"),
+  intentInfo: document.getElementById("intentInfo"),
+  intentWhoInput: document.getElementById("intentWhoInput"),
+  intentCategoriesLabel: document.getElementById("intentCategoriesLabel"),
+  intentCategoryList: document.getElementById("intentCategoryList"),
+  intentSkipBtn: document.getElementById("intentSkipBtn"),
+  intentSaveBtn: document.getElementById("intentSaveBtn"),
   providersModal: document.getElementById("providersModal"),
   providersBackdrop: document.getElementById("providersBackdrop"),
   closeProvidersBtn: document.getElementById("closeProvidersBtn"),
@@ -62,6 +86,9 @@ const el = {
   saveApiKeyBtn: document.getElementById("saveApiKeyBtn"),
   langEnBtn: document.getElementById("langEnBtn"),
   langDeBtn: document.getElementById("langDeBtn"),
+  movieSearchBox: document.getElementById("movieSearchBox"),
+  movieSearchInput: document.getElementById("movieSearchInput"),
+  movieSearchResults: document.getElementById("movieSearchResults"),
   audienceFilterSelect: document.getElementById("audienceFilterSelect"),
   appSubtitle: document.getElementById("appSubtitle"),
   flipCounter: document.getElementById("flipCounter"),
@@ -123,14 +150,27 @@ function init() {
   renderLibrary();
   updateBackButtonState();
   updateProvidersBadge();
+  updateMovieSearchAvailability();
 
   if (state.token) {
     el.apiKeyInput.value = state.token;
-    bootstrap().catch(showErrorOnCard);
+    startSession().catch(showErrorOnCard);
   } else {
     openSettings();
     showStatus("card.statusSetKey");
   }
+}
+
+async function startSession() {
+  if (needsIntentPrompt()) {
+    openIntentModal();
+    return;
+  }
+  await bootstrap();
+}
+
+function needsIntentPrompt() {
+  return !state.profile.intentPromptDone;
 }
 
 function detectBrowserLanguage() {
@@ -291,6 +331,7 @@ function applyLanguageToUi() {
   el.providersBtn.setAttribute("aria-label", t("providers.openAria"));
   el.closeProvidersBtn.setAttribute("aria-label", t("providers.closeAria"));
   el.audienceFilterSelect.setAttribute("aria-label", t("audience.aria"));
+  el.movieSearchInput.setAttribute("aria-label", t("search.aria"));
 
   el.appSubtitle.textContent = t("appSubtitle");
   el.flipLabel.textContent = t("counters.flips");
@@ -309,6 +350,7 @@ function applyLanguageToUi() {
 
   el.recsTitle.textContent = t("recommendations.title");
   el.refreshRecsBtn.textContent = t("recommendations.refresh");
+  el.movieSearchInput.placeholder = t("search.placeholder");
   if (el.audienceFilterSelect.options[0]) {
     el.audienceFilterSelect.options[0].textContent = t("audience.all");
   }
@@ -358,6 +400,13 @@ function applyLanguageToUi() {
   el.saveProvidersBtn.textContent = t("providers.save");
 
   el.emptyNote.textContent = t("card.emptyQueue");
+  el.intentTitle.textContent = t("intent.title");
+  el.intentInfo.textContent = t("intent.info");
+  el.intentWhoInput.placeholder = t("intent.whoPlaceholder");
+  el.intentCategoriesLabel.textContent = t("intent.categoriesLabel");
+  el.intentSkipBtn.textContent = t("intent.skip");
+  el.intentSaveBtn.textContent = t("intent.start");
+  renderIntentCategories();
   el.confirmTitle.textContent = t("confirm.title");
   el.confirmCancelBtn.textContent = t("confirm.cancel");
   el.confirmOkBtn.textContent = t("confirm.remove");
@@ -378,6 +427,7 @@ function bindEvents() {
   el.providersBtn.addEventListener("click", () => openProvidersModal().catch(showErrorOnCard));
   el.closeSettingsBtn.addEventListener("click", closeSettings);
   el.settingsBackdrop.addEventListener("click", closeSettings);
+  el.intentBackdrop.addEventListener("click", skipIntentPrompt);
   el.closeProvidersBtn.addEventListener("click", closeProvidersModal);
   el.providersBackdrop.addEventListener("click", closeProvidersModal);
   el.clearProvidersBtn.addEventListener("click", () => {
@@ -394,6 +444,32 @@ function bindEvents() {
   el.confirmBackdrop.addEventListener("click", closeConfirmModal);
   el.confirmCancelBtn.addEventListener("click", closeConfirmModal);
   el.confirmOkBtn.addEventListener("click", executeConfirmAction);
+  el.intentSkipBtn.addEventListener("click", skipIntentPrompt);
+  el.intentSaveBtn.addEventListener("click", saveIntentAndStart);
+  el.movieSearchInput.addEventListener("input", () => scheduleMovieSearch(el.movieSearchInput.value));
+  el.movieSearchInput.addEventListener("focus", () => {
+    if (state.searchResults.length) {
+      renderMovieSearchResults();
+    }
+  });
+  el.movieSearchInput.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (!el.movieSearchBox.contains(document.activeElement)) {
+        hideMovieSearchResults();
+      }
+    }, 120);
+  });
+  el.movieSearchInput.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      hideMovieSearchResults();
+      el.movieSearchInput.blur();
+    }
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (!el.movieSearchBox.contains(event.target)) {
+      hideMovieSearchResults();
+    }
+  }, true);
 
   el.langEnBtn.addEventListener("click", () => {
     switchLanguage("en").catch(showErrorOnCard);
@@ -420,8 +496,9 @@ function bindEvents() {
     }
     state.token = token;
     localStorage.setItem(API_KEY_STORAGE, token);
+    updateMovieSearchAvailability();
     closeSettings();
-    await bootstrap().catch(showErrorOnCard);
+    await startSession().catch(showErrorOnCard);
   });
 
   el.likeBtn.addEventListener("click", () => handleDecision("like"));
@@ -453,6 +530,10 @@ function bindEvents() {
     }
     if (event.key === "Escape" && !el.confirmModal.classList.contains("hidden")) {
       closeConfirmModal();
+      return;
+    }
+    if (event.key === "Escape" && !el.intentModal.classList.contains("hidden")) {
+      skipIntentPrompt();
       return;
     }
     if (!state.current) {
@@ -491,6 +572,165 @@ function closeSettings() {
   }
   el.settingsModal.classList.add("hidden");
   el.settingsModal.setAttribute("aria-hidden", "true");
+}
+
+function openIntentModal() {
+  const intent = normalizeIntent(state.profile.intent || {});
+  el.intentWhoInput.value = intent.who;
+  state.intentDraftCategories = new Set(intent.categories || []);
+  renderIntentCategories();
+  el.intentModal.classList.remove("hidden");
+  el.intentModal.setAttribute("aria-hidden", "false");
+}
+
+function closeIntentModal() {
+  el.intentModal.classList.add("hidden");
+  el.intentModal.setAttribute("aria-hidden", "true");
+}
+
+function updateMovieSearchAvailability() {
+  const enabled = Boolean(state.token);
+  el.movieSearchInput.disabled = !enabled;
+  if (!enabled) {
+    el.movieSearchInput.value = "";
+    state.searchResults = [];
+    state.searchQuery = "";
+    hideMovieSearchResults();
+  }
+}
+
+function skipIntentPrompt() {
+  state.profile.intentPromptDone = true;
+  if (!state.profile.intent) {
+    state.profile.intent = normalizeIntent({});
+  }
+  saveProfile();
+  closeIntentModal();
+  bootstrap().catch(showErrorOnCard);
+}
+
+function saveIntentAndStart() {
+  const who = el.intentWhoInput.value.trim();
+  const categories = Array.from(state.intentDraftCategories || []);
+  state.profile.intent = normalizeIntent({
+    who,
+    categories,
+    updatedAt: Date.now()
+  });
+  state.profile.intentPromptDone = true;
+  saveProfile();
+  closeIntentModal();
+  bootstrap().catch(showErrorOnCard);
+}
+
+function scheduleMovieSearch(rawQuery) {
+  const query = String(rawQuery || "").trim();
+  state.searchQuery = query;
+  if (state.searchDebounceId) {
+    clearTimeout(state.searchDebounceId);
+    state.searchDebounceId = null;
+  }
+
+  if (query.length < 2 || !state.token) {
+    state.searchResults = [];
+    hideMovieSearchResults();
+    return;
+  }
+
+  state.searchDebounceId = setTimeout(() => {
+    searchMovies(query).catch(() => {
+      state.searchResults = [];
+      renderMovieSearchResults();
+    });
+  }, 220);
+}
+
+async function searchMovies(query) {
+  if (!state.token) {
+    return;
+  }
+  const params = new URLSearchParams({
+    include_adult: "false",
+    language: tmdbLanguage(),
+    page: "1",
+    query
+  });
+  const payload = await api("/search/movie", params.toString());
+  if (el.movieSearchInput.value.trim() !== query) {
+    return;
+  }
+  state.searchResults = dedupeById(payload.results || []).slice(0, 8);
+  renderMovieSearchResults();
+}
+
+function renderMovieSearchResults() {
+  el.movieSearchResults.innerHTML = "";
+  if (!state.searchQuery || state.searchQuery.length < 2) {
+    hideMovieSearchResults();
+    return;
+  }
+
+  if (!state.searchResults.length) {
+    hideMovieSearchResults();
+    return;
+  }
+
+  state.searchResults.forEach((movie) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "movie-search-item";
+    const year = movie.release_date ? movie.release_date.slice(0, 4) : t("meta.na");
+    btn.innerHTML = `<strong>${movie.title || t("card.loadMovie")}</strong><small>${year}</small>`;
+    btn.addEventListener("click", () => selectMovieFromSearch(movie));
+    el.movieSearchResults.appendChild(btn);
+  });
+  el.movieSearchResults.hidden = false;
+}
+
+function hideMovieSearchResults() {
+  el.movieSearchResults.hidden = true;
+}
+
+function selectMovieFromSearch(movie) {
+  if (!movie || !movie.id) {
+    return;
+  }
+  if (state.current && state.current.id !== movie.id) {
+    state.queue.unshift(state.current);
+  }
+  state.queue = state.queue.filter((item) => item.id !== movie.id);
+  state.current = movie;
+  renderMovie(movie);
+  updateBackButtonState();
+  el.movieSearchInput.value = "";
+  state.searchQuery = "";
+  state.searchResults = [];
+  hideMovieSearchResults();
+}
+
+function renderIntentCategories() {
+  if (!el.intentCategoryList) {
+    return;
+  }
+  el.intentCategoryList.innerHTML = "";
+  const selected = state.intentDraftCategories || new Set();
+  INTENT_CATEGORIES.forEach((categoryId) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `intent-category-btn${selected.has(categoryId) ? " selected" : ""}`;
+    btn.textContent = t(`intent.categories.${categoryId}`);
+    btn.setAttribute("aria-pressed", selected.has(categoryId) ? "true" : "false");
+    btn.addEventListener("click", () => {
+      if (selected.has(categoryId)) {
+        selected.delete(categoryId);
+      } else {
+        selected.add(categoryId);
+      }
+      state.intentDraftCategories = selected;
+      renderIntentCategories();
+    });
+    el.intentCategoryList.appendChild(btn);
+  });
 }
 
 async function openProvidersModal() {
@@ -616,10 +856,12 @@ function loadProfile() {
       watched: parsed.watched || [],
       bookmarks: normalizeBookmarks(parsed.bookmarks || []),
       ratings: parsed.ratings || {},
-      seenIds: parsed.seenIds || []
+      seenIds: parsed.seenIds || [],
+      intent: normalizeIntent(parsed.intent || {}),
+      intentPromptDone: Boolean(parsed.intentPromptDone)
     };
   } catch {
-    return { flips: 0, likes: [], dislikes: [], watched: [], bookmarks: [], ratings: {}, seenIds: [] };
+    return { flips: 0, likes: [], dislikes: [], watched: [], bookmarks: [], ratings: {}, seenIds: [], intent: normalizeIntent({}), intentPromptDone: false };
   }
 }
 
@@ -675,9 +917,8 @@ async function fillQueue() {
     const filtered = pool.filter((movie) => !isExcluded(movie.id));
 
     const unique = dedupeById(filtered);
-    shuffle(unique);
-
-    state.queue.push(...unique.slice(0, 30));
+    const intentFiltered = filterByIntentCategories(unique);
+    state.queue.push(...intentFiltered.slice(0, 30));
   } finally {
     state.loadingQueue = false;
     el.emptyNote.hidden = true;
@@ -1270,6 +1511,7 @@ function doRestartFlipping() {
   state.profile.flips = 0;
   state.profile.seenIds = dedupeById([...state.profile.watched, ...state.profile.bookmarks]).map((movie) => movie.id);
   state.recs = [];
+  state.profile.intentPromptDone = false;
   state.lastAction = null;
   state.pendingOverride = null;
   saveProfile();
@@ -1277,7 +1519,7 @@ function doRestartFlipping() {
   renderLibrary();
   renderRecommendations();
   updateBackButtonState();
-  maybeRefreshRecommendations(true);
+  openIntentModal();
 }
 
 function doClearActiveLibrary(view) {
@@ -1623,12 +1865,70 @@ function toMinimalMovie(movie) {
   };
 }
 
+function filterByIntentCategories(movies) {
+  const intent = normalizeIntent(state.profile.intent || {});
+  if (!intent.categories.length) {
+    const shuffled = [...movies];
+    shuffle(shuffled);
+    return shuffled;
+  }
+
+  const scored = movies.map((movie) => ({
+    movie,
+    score: scoreIntent(movie, intent.keywords)
+  }));
+
+  return scored
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map((entry) => entry.movie);
+}
+
+function scoreIntent(movie, keywords) {
+  const genreText = (movie.genre_ids || []).map((id) => state.genres.get(id) || "").join(" ");
+  const haystack = `${movie.title || ""} ${movie.overview || ""} ${genreText}`.toLowerCase();
+  let score = 0;
+  for (const keyword of keywords) {
+    if (keyword && haystack.includes(keyword)) {
+      score += 1;
+    }
+  }
+  return score;
+}
+
 function normalizeBookmarks(bookmarks) {
   const base = Date.now();
   return (Array.isArray(bookmarks) ? bookmarks : []).map((item, idx) => ({
     ...item,
     bookmarkedAt: Number(item?.bookmarkedAt) || (base - (bookmarks.length - idx) * 1000)
   }));
+}
+
+function normalizeIntent(intent) {
+  const who = String(intent?.who || "").trim();
+  const rawCategories = Array.isArray(intent?.categories) ? intent.categories : [];
+  const categories = Array.from(
+    new Set(
+      rawCategories
+        .map((value) => String(value || "").trim().toLowerCase())
+        .filter((value) => INTENT_CATEGORIES.includes(value))
+    )
+  );
+  const categoryKeywords = categories.flatMap((category) => INTENT_CATEGORY_KEYWORDS[category] || []);
+  const legacyKeywords = Array.isArray(intent?.keywords) ? intent.keywords : [];
+  const keywords = Array.from(
+    new Set(
+      [...categoryKeywords, ...legacyKeywords]
+        .map((value) => String(value || "").trim().toLowerCase())
+        .filter(Boolean)
+    )
+  ).slice(0, 10);
+  return {
+    who,
+    categories,
+    keywords,
+    updatedAt: Number(intent?.updatedAt) || 0
+  };
 }
 
 function withBookmarkMetadata(movie) {

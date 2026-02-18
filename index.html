@@ -15,20 +15,30 @@
         <p id="appSubtitle">Swipe your taste. Get better recommendations.</p>
       </div>
       <div class="top-controls">
-        <button id="langEnBtn" class="lang-btn" type="button" aria-label="Switch to English">🇬🇧</button>
-        <button id="langDeBtn" class="lang-btn" type="button" aria-label="Auf Deutsch wechseln">🇩🇪</button>
-        <button id="restartFlippingBtn" class="top-restart-btn" type="button">Restart Flipping</button>
-        <select id="audienceFilterSelect" class="audience-filter" aria-label="Audience filter">
-          <option value="all">All</option>
-          <option value="kids">Kids</option>
-          <option value="family">Family</option>
-          <option value="adults">Adults</option>
-        </select>
-        <button id="providersBtn" class="settings-btn" type="button" aria-label="Open providers">
-          <span id="providersBtnLabel">TV</span>
-          <span id="providersCountBadge" class="icon-badge" hidden>0</span>
-        </button>
-        <button id="settingsBtn" class="settings-btn" type="button" aria-label="Open settings">⚙</button>
+        <div class="top-controls-search">
+          <div class="top-controls-topline">
+            <select id="audienceFilterSelect" class="audience-filter" aria-label="Audience filter">
+              <option value="all">All</option>
+              <option value="kids">Kids</option>
+              <option value="family">Family</option>
+              <option value="adults">Adults</option>
+            </select>
+          </div>
+          <div id="movieSearchBox" class="movie-search">
+            <input id="movieSearchInput" type="search" placeholder="Search movie..." autocomplete="off" />
+            <div id="movieSearchResults" class="movie-search-results" hidden></div>
+          </div>
+        </div>
+        <div class="top-controls-actions">
+          <button id="langEnBtn" class="lang-btn" type="button" aria-label="Switch to English">🇬🇧</button>
+          <button id="langDeBtn" class="lang-btn" type="button" aria-label="Auf Deutsch wechseln">🇩🇪</button>
+          <button id="providersBtn" class="settings-btn" type="button" aria-label="Open providers">
+            <span id="providersBtnLabel">TV</span>
+            <span id="providersCountBadge" class="icon-badge" hidden>0</span>
+          </button>
+          <button id="settingsBtn" class="settings-btn" type="button" aria-label="Open settings">⚙</button>
+          <button id="restartFlippingBtn" class="top-restart-btn" type="button">Restart Flipping</button>
+        </div>
       </div>
     </header>
 
@@ -135,6 +145,25 @@
       <small id="settingsHelp">
         Get one at <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noreferrer">themoviedb.org</a>. Store it with domain restrictions when possible.
       </small>
+    </div>
+  </section>
+
+  <section class="settings-modal hidden" id="intentModal" aria-hidden="true">
+    <div class="settings-backdrop" id="intentBackdrop"></div>
+    <div class="settings-card" role="dialog" aria-modal="true" aria-labelledby="intentTitle">
+      <div class="settings-head">
+        <h2 id="intentTitle">What do you want to watch?</h2>
+      </div>
+      <p id="intentInfo">Set a rough direction before flipping.</p>
+      <div class="config-row">
+        <input id="intentWhoInput" type="text" placeholder="Who is watching? (e.g. me, family, date night)" autocomplete="off" />
+      </div>
+      <p id="intentCategoriesLabel" class="meta-label">Categories</p>
+      <div id="intentCategoryList" class="intent-category-list"></div>
+      <div class="config-row">
+        <button id="intentSkipBtn" type="button">Skip</button>
+        <button id="intentSaveBtn" type="button">Start Flipping</button>
+      </div>
     </div>
   </section>
 

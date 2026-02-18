@@ -21,6 +21,29 @@ export default {
     family: "Family",
     adults: "Adults"
   },
+  search: {
+    aria: "Search movies",
+    placeholder: "Search movie...",
+    noResults: "No movies found."
+  },
+  intent: {
+    title: "What do you want to watch?",
+    info: "Set a rough direction before flipping.",
+    whoPlaceholder: "Who is watching? (e.g. me, family, date night)",
+    categoriesLabel: "Mood Categories",
+    categories: {
+      romance: "Romance & Love",
+      fun: "Fun",
+      action: "Action & Adrenaline",
+      mystery: "Mystery & Thriller",
+      drama: "Drama & Emotion",
+      sci_fi: "Sci-Fi & Fantasy",
+      family: "Family & Animation",
+      horror: "Horror & Dark"
+    },
+    skip: "Skip",
+    start: "Start Flipping"
+  },
   recommendations: {
     title: "Recommended for You",
     refresh: "Refresh",

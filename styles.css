@@ -42,10 +42,73 @@ body {
 }
 
 .top-controls {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.top-controls-search {
+  width: 100%;
+}
+
+.top-controls-topline {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6px;
+}
+
+.top-controls-actions {
   display: flex;
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.movie-search {
+  position: relative;
+}
+
+#movieSearchInput {
+  width: min(48vw, 360px);
+  max-width: 360px;
+  border-radius: 999px;
+  padding: 9px 12px;
+}
+
+.movie-search-results {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(92vw, 360px);
+  max-height: 320px;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid var(--edge);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  z-index: 25;
+  padding: 6px;
+  display: grid;
+  gap: 6px;
+}
+
+.movie-search-item {
+  width: 100%;
+  text-align: left;
+  background: #f4ede0;
+  color: #2e2a23;
+  border: 1px solid #dacdb9;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.movie-search-item strong {
+  display: block;
+}
+
+.movie-search-item small {
+  color: var(--muted);
 }
 
 .top-bar p {
@@ -145,7 +208,7 @@ button {
 .top-restart-btn {
   padding: 9px 12px;
   border-radius: 999px;
-  background: #2f3e60;
+  background: #495057;
   white-space: nowrap;
 }
 
@@ -742,6 +805,27 @@ button {
   justify-content: flex-end;
 }
 
+.intent-category-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 6px 0 10px;
+}
+
+.intent-category-btn {
+  background: #e8dfcf;
+  color: #2e2a23;
+  border: 1px solid #c9bea9;
+  border-radius: 999px;
+  padding: 8px 12px;
+}
+
+.intent-category-btn.selected {
+  background: #2e2a23;
+  color: #fff;
+  border-color: #2e2a23;
+}
+
 .providers-list {
   max-height: 45vh;
   overflow: auto;
@@ -770,6 +854,23 @@ button {
 }
 
 @media (max-width: 700px) {
+  .top-controls {
+    justify-items: stretch;
+  }
+
+  .top-controls-actions {
+    justify-content: flex-start;
+  }
+
+  .top-controls-topline {
+    justify-content: flex-start;
+  }
+
+  #movieSearchInput {
+    width: 100%;
+    max-width: none;
+  }
+
   .dashboard {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

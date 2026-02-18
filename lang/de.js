@@ -21,6 +21,29 @@ export default {
     family: "Familie",
     adults: "Erwachsene"
   },
+  search: {
+    aria: "Filme suchen",
+    placeholder: "Film suchen...",
+    noResults: "Keine Filme gefunden."
+  },
+  intent: {
+    title: "Was wollt ihr schauen?",
+    info: "Gib vor dem Flippen eine grobe Richtung an.",
+    whoPlaceholder: "Wer schaut? (z. B. ich, Familie, Date Night)",
+    categoriesLabel: "Stimmungs-Kategorien",
+    categories: {
+      romance: "Romantik & Liebe",
+      fun: "Leicht & Spaß",
+      action: "Action & Adrenalin",
+      mystery: "Mystery & Thriller",
+      drama: "Drama & Emotion",
+      sci_fi: "Sci-Fi & Fantasy",
+      family: "Familie & Animation",
+      horror: "Horror & Düster"
+    },
+    skip: "Überspringen",
+    start: "Flipping starten"
+  },
   recommendations: {
     title: "Empfohlen für dich",
     refresh: "Aktualisieren",
