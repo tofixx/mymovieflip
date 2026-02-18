@@ -14,9 +14,17 @@ export default {
     bookmark: "Merken",
     like: "Like"
   },
+  audience: {
+    aria: "Zielgruppen-Filter",
+    all: "Alle",
+    kids: "Kinder",
+    family: "Familie",
+    adults: "Erwachsene"
+  },
   recommendations: {
     title: "Empfohlen für dich",
     refresh: "Aktualisieren",
+    flipsLeft: "Noch {count} Flips bis Empfehlungen freigeschaltet sind.",
     empty: "Noch keine Empfehlungen. Weiter wischen."
   },
   library: {
@@ -39,7 +47,15 @@ export default {
     watched: "Gesehen",
     bookmark: "Merken",
     moveToWatched: "Zu Gesehen verschieben",
+    restartFlipping: "Flipping neu starten",
+    sortLabel: "Sortieren",
+    sortDateNewest: "Neueste",
+    sortDateOldest: "Älteste",
+    sortTitleAsc: "Titel A-Z",
+    sortTitleDesc: "Titel Z-A",
+    openImdbAria: "Auf IMDb öffnen",
     providerLoading: "Provider werden geprüft...",
+    providerAvailable: "Anbieter verfügbar",
     providerUnavailable: "Kein Anbieter verfügbar",
     providerOpen: "Öffnen bei {provider}",
     providerFallback: "Kein gewählter Provider, verfügbar: {list}"
@@ -68,7 +84,8 @@ export default {
     cancel: "Abbrechen",
     remove: "Entfernen",
     single: "\"{title}\" wirklich entfernen?",
-    clearCurrent: "Wirklich alle Filme aus der aktuellen Liste entfernen?"
+    clearCurrent: "Wirklich alle Filme aus der aktuellen Liste entfernen?",
+    restartFlipping: "Flipping neu starten? Likes und Dislikes werden entfernt, Merkliste bleibt."
   },
   card: {
     loadMovie: "Film laden",

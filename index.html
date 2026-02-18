@@ -17,6 +17,13 @@
       <div class="top-controls">
         <button id="langEnBtn" class="lang-btn" type="button" aria-label="Switch to English">🇬🇧</button>
         <button id="langDeBtn" class="lang-btn" type="button" aria-label="Auf Deutsch wechseln">🇩🇪</button>
+        <button id="restartFlippingBtn" class="top-restart-btn" type="button">Restart Flipping</button>
+        <select id="audienceFilterSelect" class="audience-filter" aria-label="Audience filter">
+          <option value="all">All</option>
+          <option value="kids">Kids</option>
+          <option value="family">Family</option>
+          <option value="adults">Adults</option>
+        </select>
         <button id="providersBtn" class="settings-btn" type="button" aria-label="Open providers">
           <span id="providersBtnLabel">TV</span>
           <span id="providersCountBadge" class="icon-badge" hidden>0</span>
@@ -64,7 +71,13 @@
         <button class="action-btn bookmark" id="bookmarkBtn">Bookmark</button>
       </section>
         <div class="card-body">
-          <h2 id="movieTitle">Load a movie</h2>
+          <div class="movie-title-row">
+            <h2 id="movieTitle">Load a movie</h2>
+            <div class="movie-title-links">
+              <a id="movieTrailerLink" class="inline-icon-link trailer" target="_blank" rel="noreferrer" aria-label="Watch trailer" hidden>▶</a>
+              <a id="movieTmdbLink" class="inline-icon-link tmdb" target="_blank" rel="noreferrer" aria-label="Open on TMDB" hidden>🔗</a>
+            </div>
+          </div>
           <p id="movieMeta"></p>
           <p class="meta-label" id="movieDescriptionLabel">Description</p>
           <p id="movieOverview"></p>
@@ -85,7 +98,16 @@
     <section class="watched-panel">
       <div class="watched-head">
         <h2 id="libraryTitle">Your Movie Library</h2>
-        <button id="clearLibraryBtn" type="button">Clear Current</button>
+        <div class="library-controls">
+          <label for="bookmarkSortSelect" id="bookmarkSortLabel" class="bookmark-sort-label" hidden>Sort</label>
+          <select id="bookmarkSortSelect" hidden>
+            <option value="date_desc">Newest</option>
+            <option value="date_asc">Oldest</option>
+            <option value="title_asc">Title A-Z</option>
+            <option value="title_desc">Title Z-A</option>
+          </select>
+          <button id="clearLibraryBtn" type="button">Clear Current</button>
+        </div>
       </div>
       <div class="library-tabs">
         <button type="button" class="library-tab active" data-view="watched">Watched</button>
@@ -148,8 +170,16 @@
 
   <template id="libraryItemTemplate">
     <div class="watched-item">
-      <span class="watched-title"></span>
+      <span class="watched-title">
+        <span class="watched-title-text"></span>
+        <span class="watched-title-meta" hidden></span>
+      </span>
       <div class="watched-actions">
+        <div class="watched-inline-icons">
+          <a class="inline-icon-link trailer" target="_blank" rel="noreferrer" aria-label="Watch trailer" hidden>▶</a>
+          <a class="inline-icon-link imdb" target="_blank" rel="noreferrer" aria-label="Open on IMDb" hidden>IMDb</a>
+          <a class="inline-icon-link availability" target="_blank" rel="noreferrer" aria-label="Availability">TV</a>
+        </div>
         <div class="rating-group"></div>
         <details class="item-menu">
           <summary class="item-menu-trigger">•••</summary>

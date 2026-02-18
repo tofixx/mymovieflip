@@ -14,9 +14,17 @@ export default {
     bookmark: "Bookmark",
     like: "Like"
   },
+  audience: {
+    aria: "Audience filter",
+    all: "All",
+    kids: "Kids",
+    family: "Family",
+    adults: "Adults"
+  },
   recommendations: {
     title: "Recommended for You",
     refresh: "Refresh",
+    flipsLeft: "{count} flips left until recommendations unlock.",
     empty: "No recommendations yet. Keep flipping."
   },
   library: {
@@ -39,7 +47,15 @@ export default {
     watched: "Watched",
     bookmark: "Bookmark",
     moveToWatched: "Move to Watched",
+    restartFlipping: "Restart Flipping",
+    sortLabel: "Sort",
+    sortDateNewest: "Newest",
+    sortDateOldest: "Oldest",
+    sortTitleAsc: "Title A-Z",
+    sortTitleDesc: "Title Z-A",
+    openImdbAria: "Open on IMDb",
     providerLoading: "Checking providers...",
+    providerAvailable: "Provider available",
     providerUnavailable: "No provider available",
     providerOpen: "Open at {provider}",
     providerFallback: "No selected provider, available: {list}"
@@ -68,7 +84,8 @@ export default {
     cancel: "Cancel",
     remove: "Remove",
     single: "Really remove \"{title}\"?",
-    clearCurrent: "Really remove all movies from the current list?"
+    clearCurrent: "Really remove all movies from the current list?",
+    restartFlipping: "Restart flipping? Likes and dislikes will be removed, bookmarks stay."
   },
   card: {
     loadMovie: "Load a movie",

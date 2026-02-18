@@ -45,6 +45,7 @@ body {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .top-bar p {
@@ -132,6 +133,22 @@ button {
   filter: none;
 }
 
+.audience-filter {
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  padding: 9px 12px;
+  max-width: 120px;
+}
+
+.top-restart-btn {
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: #2f3e60;
+  white-space: nowrap;
+}
+
 .dashboard {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -211,6 +228,46 @@ button {
 
 .card-body h2 {
   margin: 0 0 4px;
+}
+
+.movie-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.movie-title-links {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.inline-icon-link {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+  font-size: 0.95rem;
+  background: rgba(20, 20, 20, 0.78);
+  color: #fff;
+  flex: 0 0 auto;
+}
+
+.inline-icon-link.imdb {
+  width: 40px;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.inline-icon-link.availability.available {
+  background: #256f3a;
+}
+
+.inline-icon-link.availability.unavailable {
+  background: #6b7280;
 }
 
 .meta-label {
@@ -477,10 +534,30 @@ button {
   justify-content: space-between;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .watched-head h2 {
   margin: 0;
+}
+
+.library-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bookmark-sort-label {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+#bookmarkSortSelect {
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  background: #fff;
+  padding: 6px 8px;
 }
 
 .library-tabs {
@@ -511,10 +588,35 @@ button {
   padding: 8px 10px;
 }
 
+.watched-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.watched-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.watched-title-meta {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 .watched-actions {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.watched-inline-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .item-menu {
