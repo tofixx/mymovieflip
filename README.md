@@ -1,6 +1,6 @@
 ﻿# MovieFlip (GitHub Pages)
 
-A static movie swipe app you can deploy on GitHub Pages. Ready to test at https://tofixx.github.io/mymovieflip/
+A static movie swipe app you can deploy on GitHub Pages. Ready to test at https://tofixx.github.io/mymovieflip/ Samlpe application fully generated with AI. I did not wrote one line of code here :)
 
 ## Features
 
